@@ -2,15 +2,14 @@
 
 // Aura analog watchface (Phase 2+): the stop-to-go railway face with dials.
 //
-// A Swiss-railway-style clock (see the Design-origin note in README.md, a close
-// homage to the Mondaine railway clock, a registered design). White or black dial
-// (settings), black/white baton hands, a red second hand with the red lollipop
-// disc, and three chronograph-style subdials:
-//   * LEFT (9)   weather: temperature and a condition glyph, fed from the phone
-//                (PebbleKit JS to Open-Meteo) over AppMessage.
-//   * RIGHT (3)  day, as "WWW DD" (e.g. MON 01), red on Sundays.
-//   * BOTTOM (6) battery (default), step count, or heart rate (settings).
-// Plus an original "AURA" wordmark. All configured through a Clay settings page.
+// A Swiss-railway chronograph, close homage to the Mondaine Grand Cushion Set
+// Black (see the Design-origin note in README.md): white or black dial (settings),
+// black/white baton hands, a red second hand with the red lollipop disc, bold hour
+// markers with a wider double baton at 3 and 9, and four subdial slots at 12/9/3/6.
+// Each slot is independently configurable to one of: nothing, the AURA wordmark,
+// weather (temperature and a condition glyph, fed from the phone over AppMessage
+// via PebbleKit JS to Open-Meteo), the day ("WWW DD", red on Sundays), the date,
+// battery, step count, or heart rate. All set through a Clay settings page.
 //
 // The stop2go seconds mechanic (per-minute cycle, `sec` = seconds+ms in the
 // minute): sweep a full 360 deg over 58 s, then hold at 12 for ~2 s; at :00 the
@@ -23,17 +22,24 @@
 // Persist keys (distinct from the AppMessage keys generated in message_keys.auto.h).
 #define PKEY_SECONDS  1
 #define PKEY_THEME    2
-#define PKEY_WORDMARK 3
-#define PKEY_BOTTOM   4
 #define PKEY_WX_TEMP  5
 #define PKEY_WX_CODE  6
 #define PKEY_WX_OK    7
+// Slot keys use fresh numbers (10..13): keys 3 and 4 held the old WORDMARK (bool)
+// and BOTTOM (0=battery) values, which would be misread under the new slot enum
+// (0 now means "nothing"). Starting fresh makes old installs fall back to defaults.
+#define PKEY_TOP      10
+#define PKEY_LEFT     11
+#define PKEY_RIGHT    12
+#define PKEY_BOTTOM   13
 
 // AppMessage keys are emitted as runtime uint32_t vars in message_keys.auto.c,
 // but this SDK's generated header leaves them undeclared: declare them here.
 extern uint32_t MESSAGE_KEY_THEME;
 extern uint32_t MESSAGE_KEY_SECONDS;
-extern uint32_t MESSAGE_KEY_WORDMARK;
+extern uint32_t MESSAGE_KEY_TOP;
+extern uint32_t MESSAGE_KEY_LEFT;
+extern uint32_t MESSAGE_KEY_RIGHT;
 extern uint32_t MESSAGE_KEY_BOTTOM;
 extern uint32_t MESSAGE_KEY_WX_TEMP;
 extern uint32_t MESSAGE_KEY_WX_CODE;
@@ -43,14 +49,21 @@ static Window *s_window;
 static Layer *s_face_layer;
 static AppTimer *s_timer;
 
-// Settings.
-#define BOTTOM_BATTERY 0
-#define BOTTOM_STEPS   1
-#define BOTTOM_HEART   2
+// Settings. Each subdial slot shows one of these:
+#define C_NONE     0
+#define C_WORDMARK 1
+#define C_WEATHER  2
+#define C_DAY      3
+#define C_DATE     4
+#define C_BATTERY  5
+#define C_STEPS    6
+#define C_HEART    7
 static bool s_seconds = true;
 static bool s_theme_dark = false;
-static bool s_wordmark = true;
-static int  s_bottom = BOTTOM_BATTERY;   // 0 battery (default), 1 steps, 2 heart rate
+static int  s_slot_top    = C_WORDMARK;  // 12 o'clock
+static int  s_slot_left   = C_WEATHER;   // 9 o'clock
+static int  s_slot_right  = C_DAY;       // 3 o'clock
+static int  s_slot_bottom = C_BATTERY;   // 6 o'clock
 
 // Weather (pushed from the phone).
 static int s_wx_temp = 0;
@@ -130,6 +143,19 @@ static void draw_battery(GContext *ctx, GPoint c, int pct, bool charging, GColor
                      0, GCornerNone);
 }
 
+// A small filled heart centred on `c`, so the heart-rate slot reads as a pulse and
+// not just another number next to the step count.
+static void draw_heart(GContext *ctx, GPoint c, GColor col) {
+  graphics_context_set_fill_color(ctx, col);
+  graphics_fill_circle(ctx, GPoint(c.x - 3, c.y - 2), 4);
+  graphics_fill_circle(ctx, GPoint(c.x + 3, c.y - 2), 4);
+  GPoint tri[3] = { { c.x - 6, c.y - 1 }, { c.x + 6, c.y - 1 }, { c.x, c.y + 7 } };
+  GPathInfo info = { .num_points = 3, .points = tri };
+  GPath *p = gpath_create(&info);
+  gpath_draw_filled(ctx, p);
+  gpath_destroy(p);
+}
+
 static int today_steps(void) {
 #if defined(PBL_HEALTH)
   HealthServiceAccessibilityMask m =
@@ -174,6 +200,70 @@ static void draw_centered(GContext *ctx, const char *s, GFont font, GPoint c, GC
       GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 }
 
+// Render one subdial slot's chosen content, optically centred on `c`. Slots that
+// pair a glyph with a value (weather, battery, heart) stack the glyph above and
+// the value below; the rest draw a single centred item. C_NONE draws nothing.
+static void draw_complication(GContext *ctx, int type, GPoint c, GColor fg) {
+  char buf[12];
+  switch (type) {
+    case C_WORDMARK:
+      draw_centered(ctx, "AURA", s_font_label, c, fg);
+      break;
+    case C_WEATHER:
+      if (s_wx_ok) {
+        draw_centered(ctx, wx_glyph(s_wx_code), s_font_wx, GPoint(c.x, c.y - 8), fg);
+        snprintf(buf, sizeof(buf), "%d\xC2\xB0", s_wx_temp);
+      } else {
+        snprintf(buf, sizeof(buf), "--\xC2\xB0");
+      }
+      draw_centered(ctx, buf, s_font_data, GPoint(c.x, c.y + 10), fg);
+      break;
+    case C_DAY: {
+      time_t now = time(NULL);
+      struct tm *dt = localtime(&now);
+      strftime(buf, sizeof(buf), "%a %d", dt);
+      for (int i = 0; i < 3 && buf[i]; i++)
+        if (buf[i] >= 'a' && buf[i] <= 'z') buf[i] -= 32;   // MON 01
+      draw_centered(ctx, buf, s_font_label, c, dt->tm_wday == 0 ? GColorRed : fg);
+      break;
+    }
+    case C_DATE: {
+      time_t now = time(NULL);
+      struct tm *dt = localtime(&now);
+      strftime(buf, sizeof(buf), "%d %b", dt);
+      for (int i = 0; buf[i]; i++)
+        if (buf[i] >= 'a' && buf[i] <= 'z') buf[i] -= 32;   // 01 SEP
+      draw_centered(ctx, buf, s_font_label, c, fg);
+      break;
+    }
+    case C_BATTERY: {
+      BatteryChargeState b = battery_state_service_peek();
+      draw_battery(ctx, GPoint(c.x, c.y - 9), b.charge_percent, b.is_charging, fg);
+      snprintf(buf, sizeof(buf), "%d%%", b.charge_percent);
+      draw_centered(ctx, buf, s_font_data, GPoint(c.x, c.y + 11), fg);
+      break;
+    }
+    case C_STEPS: {
+      int v = today_steps();
+      if (v < 0) snprintf(buf, sizeof(buf), "--");
+      else       snprintf(buf, sizeof(buf), "%d", v);
+      draw_centered(ctx, buf, s_font_data, c, fg);
+      break;
+    }
+    case C_HEART: {
+      int v = current_hr();
+      draw_heart(ctx, GPoint(c.x, c.y - 9), GColorRed);
+      if (v < 0) snprintf(buf, sizeof(buf), "--");
+      else       snprintf(buf, sizeof(buf), "%d", v);
+      draw_centered(ctx, buf, s_font_data, GPoint(c.x, c.y + 11), fg);
+      break;
+    }
+    case C_NONE:
+    default:
+      break;
+  }
+}
+
 // ---- rendering -------------------------------------------------------------
 
 static void face_update_proc(Layer *layer, GContext *ctx) {
@@ -192,7 +282,10 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   for (int i = 0; i < 60; i++) {
     float deg = 360.0f * i / 60.0f;
     if (i % 5 == 0) {
-      fill_bar(ctx, center, deg, R - 17, R, 3, fg);   // sharp hour bar
+      // Bold square hour bars, with a wider double baton at 3 and 9 (i=15, i=45),
+      // as on the Grand Cushion dial.
+      int hw = (i == 15 || i == 45) ? 5 : 3;
+      fill_bar(ctx, center, deg, R - 17, R, hw, fg);
     } else {
       graphics_context_set_stroke_color(ctx, fg);
       graphics_context_set_stroke_width(ctx, 1);
@@ -200,54 +293,12 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
     }
   }
 
+  // Four configurable subdial slots at 12/9/3/6 (contents only, no ring outline).
   int f = R * 47 / 100;                            // subdial centre distance
-  GPoint pL = point_at(center, 270, f);            // left: weather
-  GPoint pR = point_at(center, 90, f);             // right: day
-  GPoint pB = point_at(center, 180, f);            // bottom: steps/heart
-
-  // AURA wordmark, upper dial (no logo: original wordmark).
-  if (s_wordmark) {
-    draw_centered(ctx, "AURA", s_font_label, point_at(center, 0, R * 42 / 100), fg);
-  }
-
-  // Subdials: contents only, no ring outline.
-  // LEFT: weather: condition glyph over temperature.
-  {
-    char tbuf[8];
-    if (s_wx_ok) {
-      draw_centered(ctx, wx_glyph(s_wx_code), s_font_wx, GPoint(pL.x, pL.y - 8), fg);
-      snprintf(tbuf, sizeof(tbuf), "%d\xC2\xB0", s_wx_temp);
-    } else {
-      snprintf(tbuf, sizeof(tbuf), "--\xC2\xB0");
-    }
-    draw_centered(ctx, tbuf, s_font_data, GPoint(pL.x, pL.y + 10), fg);
-  }
-
-  // RIGHT: day, "WWW DD", red on Sundays (calendar convention).
-  {
-    time_t now = time(NULL);
-    struct tm *dt = localtime(&now);
-    char d[12];
-    strftime(d, sizeof(d), "%a %d", dt);
-    for (int i = 0; i < 3 && d[i]; i++)
-      if (d[i] >= 'a' && d[i] <= 'z') d[i] -= 32;    // MON 01
-    draw_centered(ctx, d, s_font_label, pR, dt->tm_wday == 0 ? GColorRed : fg);
-  }
-
-  // BOTTOM: battery (default), steps, or heart rate.
-  if (s_bottom == BOTTOM_BATTERY) {
-    BatteryChargeState b = battery_state_service_peek();
-    char nbuf[8];
-    draw_battery(ctx, GPoint(pB.x, pB.y - 9), b.charge_percent, b.is_charging, fg);
-    snprintf(nbuf, sizeof(nbuf), "%d%%", b.charge_percent);
-    draw_centered(ctx, nbuf, s_font_data, GPoint(pB.x, pB.y + 11), fg);
-  } else {
-    char nbuf[12];
-    int v = (s_bottom == BOTTOM_HEART) ? current_hr() : today_steps();
-    if (v < 0) snprintf(nbuf, sizeof(nbuf), "--");
-    else       snprintf(nbuf, sizeof(nbuf), "%d", v);
-    draw_centered(ctx, nbuf, s_font_data, pB, fg);
-  }
+  draw_complication(ctx, s_slot_top,    point_at(center, 0,   f), fg);
+  draw_complication(ctx, s_slot_left,   point_at(center, 270, f), fg);
+  draw_complication(ctx, s_slot_right,  point_at(center, 90,  f), fg);
+  draw_complication(ctx, s_slot_bottom, point_at(center, 180, f), fg);
 
   // Hands (over the subdials, chronograph-style). Take seconds and milliseconds
   // from a single time_ms() sample: reading tm_sec and ms from two separate
@@ -336,6 +387,11 @@ static void reconfigure_updates(void) {
 
 // ---- settings + weather over AppMessage ------------------------------------
 
+// A Clay select may arrive as an int or a numeric string; accept both.
+static int tuple_int(Tuple *tp) {
+  return (tp->type == TUPLE_CSTRING) ? atoi(tp->value->cstring) : (int)tp->value->int32;
+}
+
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *tp;
   if ((tp = dict_find(iter, MESSAGE_KEY_THEME))) {
@@ -345,13 +401,17 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_seconds = tp->value->int32; persist_write_bool(PKEY_SECONDS, s_seconds);
     reconfigure_updates();
   }
-  if ((tp = dict_find(iter, MESSAGE_KEY_WORDMARK))) {
-    s_wordmark = tp->value->int32; persist_write_bool(PKEY_WORDMARK, s_wordmark);
+  if ((tp = dict_find(iter, MESSAGE_KEY_TOP))) {
+    s_slot_top = tuple_int(tp); persist_write_int(PKEY_TOP, s_slot_top);
+  }
+  if ((tp = dict_find(iter, MESSAGE_KEY_LEFT))) {
+    s_slot_left = tuple_int(tp); persist_write_int(PKEY_LEFT, s_slot_left);
+  }
+  if ((tp = dict_find(iter, MESSAGE_KEY_RIGHT))) {
+    s_slot_right = tuple_int(tp); persist_write_int(PKEY_RIGHT, s_slot_right);
   }
   if ((tp = dict_find(iter, MESSAGE_KEY_BOTTOM))) {
-    // Clay's select may arrive as an int or a numeric string; accept both.
-    s_bottom = (tp->type == TUPLE_CSTRING) ? atoi(tp->value->cstring) : (int)tp->value->int32;
-    persist_write_int(PKEY_BOTTOM, s_bottom);
+    s_slot_bottom = tuple_int(tp); persist_write_int(PKEY_BOTTOM, s_slot_bottom);
   }
   if ((tp = dict_find(iter, MESSAGE_KEY_WX_OK))) {
     s_wx_ok = tp->value->int32; persist_write_bool(PKEY_WX_OK, s_wx_ok);
@@ -368,8 +428,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 static void load_settings(void) {
   if (persist_exists(PKEY_SECONDS))  s_seconds = persist_read_bool(PKEY_SECONDS);
   if (persist_exists(PKEY_THEME))    s_theme_dark = persist_read_bool(PKEY_THEME);
-  if (persist_exists(PKEY_WORDMARK)) s_wordmark = persist_read_bool(PKEY_WORDMARK);
-  if (persist_exists(PKEY_BOTTOM))   s_bottom = persist_read_int(PKEY_BOTTOM);
+  if (persist_exists(PKEY_TOP))    s_slot_top    = persist_read_int(PKEY_TOP);
+  if (persist_exists(PKEY_LEFT))   s_slot_left   = persist_read_int(PKEY_LEFT);
+  if (persist_exists(PKEY_RIGHT))  s_slot_right  = persist_read_int(PKEY_RIGHT);
+  if (persist_exists(PKEY_BOTTOM)) s_slot_bottom = persist_read_int(PKEY_BOTTOM);
   if (persist_exists(PKEY_WX_TEMP))  s_wx_temp = persist_read_int(PKEY_WX_TEMP);
   if (persist_exists(PKEY_WX_CODE))  s_wx_code = persist_read_int(PKEY_WX_CODE);
   if (persist_exists(PKEY_WX_OK))    s_wx_ok = persist_read_bool(PKEY_WX_OK);

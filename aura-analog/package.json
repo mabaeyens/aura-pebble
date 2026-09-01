@@ -32,7 +32,9 @@
     "messageKeys": [
       "THEME",
       "SECONDS",
-      "WORDMARK",
+      "TOP",
+      "LEFT",
+      "RIGHT",
       "BOTTOM",
       "UNITS",
       "LOCMODE",
