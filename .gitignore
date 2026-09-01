@@ -1,0 +1,14 @@
+# Pebble build output (one build/ per face project)
+build/
+*.pbw
+
+# Pebble tooling
+.pebble-cache/
+node_modules/
+.lock-waf_*
+
+# Local specs (per Projects convention — specs are local-only)
+specs/
+
+# macOS
+.DS_Store
