@@ -25,7 +25,7 @@ src/pkjs/        PebbleKit JS (phone-side) source, if any
 worker_src/c/    Background worker source, if any
 resources/       Images, fonts, and other bundled resources
 package.json     Project metadata (UUID, platforms, resources, message keys)
-wscript          Build rules — usually no need to edit
+wscript          Build rules (usually no need to edit)
 ```
 
 By default this project is configured as a watchapp. To make it a watchface,

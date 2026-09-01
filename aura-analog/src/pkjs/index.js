@@ -1,11 +1,47 @@
-// Aura Analog — PebbleKit JS: Clay settings + Open-Meteo weather bridge.
+// Aura Analog PebbleKit JS: Clay settings + Open-Meteo weather bridge.
 // The watch has no internet; this runs on the phone, fetches weather, and pushes
 // temperature + WMO weather code to the watch over AppMessage. Open-Meteo needs
 // no API key, which keeps this free for anyone installing the face.
 
 var Clay = require('pebble-clay');
 var clayConfig = require('./config');
-var clay = new Clay(clayConfig);
+
+// Runs on the generated config page (injected via toString, so it must be fully
+// self-contained). Gives the page an Aura identity instead of the plain default:
+// a branded header, wide rounded section cards, aligned labels, and an accent
+// Save button in Aura's sky colours.
+function clayStyle() {
+  var css = [
+    'body{background:#0e1116;color:#e6edf3;}',
+    '#aura-hd{padding:26px 16px 20px;text-align:center;',
+      'background:linear-gradient(160deg,#20344f,#0e1116);}',
+    '#aura-hd .wm{font-size:30px;font-weight:700;letter-spacing:9px;color:#fff;}',
+    '#aura-hd .sub{margin-top:6px;font-size:12px;letter-spacing:2px;',
+      'color:#8aa0b6;text-transform:uppercase;}',
+    '.section{margin:16px 12px;border-radius:16px;overflow:hidden;',
+      'background:#171d27;box-shadow:0 1px 6px rgba(0,0,0,.45);}',
+    '.item{padding:15px 18px;}',
+    '.label{font-size:16px;letter-spacing:.2px;color:#e6edf3;}',
+    '.description{color:#8aa0b6;}',
+    '.input{border-radius:10px;padding:12px;}',
+    '.component-submit .button,.button{margin:18px 12px;border:0;border-radius:14px;',
+      'padding:15px;font-size:17px;letter-spacing:2px;text-transform:uppercase;color:#04222b;',
+      'background:linear-gradient(90deg,#2ec4b6,#1f8fb0);}'
+  ].join('');
+  var st = document.createElement('style');
+  st.innerHTML = css;
+  document.head.appendChild(st);
+
+  this.on(this.EVENTS.AFTER_BUILD, function () {
+    if (document.getElementById('aura-hd')) { return; }
+    var hd = document.createElement('div');
+    hd.id = 'aura-hd';
+    hd.innerHTML = '<div class="wm">AURA</div><div class="sub">Analog watchface</div>';
+    document.body.insertBefore(hd, document.body.firstChild);
+  });
+}
+
+var clay = new Clay(clayConfig, clayStyle);
 
 function settings() {
   try { return JSON.parse(localStorage.getItem('clay-settings')) || {}; }

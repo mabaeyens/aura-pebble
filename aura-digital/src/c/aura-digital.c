@@ -1,6 +1,6 @@
 #include <pebble.h>
 
-// Aura — digital watchface (Phase 1)
+// Aura digital watchface (Phase 1)
 // Minimalist glanceable face: step count, time, date, battery. System fonts
 // only, so it carries zero bundled resources and stays trivially within budget.
 //
@@ -28,7 +28,7 @@ static char s_time_buf[8];
 static char s_date_buf[24];
 static char s_batt_buf[8];
 
-// Time-of-day accent ramp — the Aura sky, quantised to the Pebble palette.
+// Time-of-day accent ramp: the Aura sky, quantised to the Pebble palette.
 static GColor accent_for_hour(int hour) {
   if (hour < 5)  return GColorIndigo;        // deep night   #5500AA
   if (hour < 7)  return GColorSunsetOrange;  // dawn         #FF5555
@@ -153,29 +153,29 @@ static void window_load(Window *window) {
   int cy = b.size.h / 2;
   int rule_w = (b.size.w * 44) / 100;
 
-  // Steps — top, in the accent colour.
+  // Steps: top, in the accent colour.
   s_steps_layer = make_text_layer(root, GRect(0, 20, b.size.w, 24),
       FONT_KEY_GOTHIC_18_BOLD, GColorWhite, GTextAlignmentCenter);
 
-  // Bluetooth-disconnect indicator — top-right corner.
+  // Bluetooth-disconnect indicator: top-right corner.
   s_bt_layer = layer_create(GRect(b.size.w - 20, 8, 12, 12));
   layer_set_update_proc(s_bt_layer, bt_update_proc);
   layer_add_child(root, s_bt_layer);
 
-  // Time — centred, large.
+  // Time: centred, large.
   s_time_layer = make_text_layer(root, GRect(0, cy - 34, b.size.w, 42),
       FONT_KEY_LECO_38_BOLD_NUMBERS, GColorWhite, GTextAlignmentCenter);
 
-  // Accent rule — the time-of-day colour.
+  // Accent rule: the time-of-day colour.
   s_accent_layer = layer_create(GRect((b.size.w - rule_w) / 2, cy + 14, rule_w, 4));
   layer_set_update_proc(s_accent_layer, accent_update_proc);
   layer_add_child(root, s_accent_layer);
 
-  // Date — below the rule.
+  // Date: below the rule.
   s_date_layer = make_text_layer(root, GRect(0, cy + 22, b.size.w, 26),
       FONT_KEY_GOTHIC_18, GColorLightGray, GTextAlignmentCenter);
 
-  // Battery — bottom.
+  // Battery: bottom.
   s_batt_layer = make_text_layer(root, GRect(0, b.size.h - 30, b.size.w, 22),
       FONT_KEY_GOTHIC_14, GColorLightGray, GTextAlignmentCenter);
 
@@ -208,7 +208,7 @@ static void init(void) {
   connection_service_subscribe((ConnectionHandlers){
     .pebble_app_connection_handler = connection_handler,
   });
-  // Steps refresh on the minute tick — the right cadence for a watchface; no
+  // Steps refresh on the minute tick: the right cadence for a watchface; no
   // need for a separate high-frequency health-event subscription.
 }
 

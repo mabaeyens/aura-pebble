@@ -1,20 +1,20 @@
 #include <pebble.h>
 
-// Aura — analog watchface (Phase 2+): the stop-to-go railway face with dials.
+// Aura analog watchface (Phase 2+): the stop-to-go railway face with dials.
 //
-// A Swiss-railway-style clock (see the Design-origin note in README.md — a close
+// A Swiss-railway-style clock (see the Design-origin note in README.md, a close
 // homage to the Mondaine railway clock, a registered design). White or black dial
 // (settings), black/white baton hands, a red second hand with the red lollipop
 // disc, and three chronograph-style subdials:
-//   * LEFT (9)   weather — temperature + a condition glyph, fed from the phone
-//                (PebbleKit JS -> Open-Meteo) over AppMessage.
-//   * RIGHT (3)  day, as "WWW DD" (e.g. MON 01).
-//   * BOTTOM (6) step count, or heart rate (settings).
+//   * LEFT (9)   weather: temperature and a condition glyph, fed from the phone
+//                (PebbleKit JS to Open-Meteo) over AppMessage.
+//   * RIGHT (3)  day, as "WWW DD" (e.g. MON 01), red on Sundays.
+//   * BOTTOM (6) battery (default), step count, or heart rate (settings).
 // Plus an original "AURA" wordmark. All configured through a Clay settings page.
 //
 // The stop2go seconds mechanic (per-minute cycle, `sec` = seconds+ms in the
 // minute): sweep a full 360 deg over 58 s, then hold at 12 for ~2 s; at :00 the
-// minute hand jumps and the second hand releases — continuous, no snap.
+// minute hand jumps and the second hand releases, continuous, no snap.
 
 #define SWEEP_SECONDS 58.0f
 #define FRAME_MS 50
@@ -30,7 +30,7 @@
 #define PKEY_WX_OK    7
 
 // AppMessage keys are emitted as runtime uint32_t vars in message_keys.auto.c,
-// but this SDK's generated header leaves them undeclared — declare them here.
+// but this SDK's generated header leaves them undeclared: declare them here.
 extern uint32_t MESSAGE_KEY_THEME;
 extern uint32_t MESSAGE_KEY_SECONDS;
 extern uint32_t MESSAGE_KEY_WORDMARK;
@@ -44,10 +44,13 @@ static Layer *s_face_layer;
 static AppTimer *s_timer;
 
 // Settings.
+#define BOTTOM_BATTERY 0
+#define BOTTOM_STEPS   1
+#define BOTTOM_HEART   2
 static bool s_seconds = true;
 static bool s_theme_dark = false;
 static bool s_wordmark = true;
-static bool s_bottom_heart = false;   // false = steps, true = heart rate
+static int  s_bottom = BOTTOM_BATTERY;   // 0 battery (default), 1 steps, 2 heart rate
 
 // Weather (pushed from the phone).
 static int s_wx_temp = 0;
@@ -62,9 +65,9 @@ static GPathInfo s_hour_info, s_min_info;
 static GPoint s_hour_pts[4], s_min_pts[4];
 
 // Fonts (Liberation Sans, Helvetica-like; Weather Icons for the condition glyph).
-static GFont s_font_data;    // bold 18 — temperature / steps / heart
-static GFont s_font_label;   // bold 14 — wordmark + day
-static GFont s_font_wx;      // Weather Icons 25 — condition glyph
+static GFont s_font_data;    // bold 20, temperature / battery / steps / heart
+static GFont s_font_label;   // bold 16, wordmark + day
+static GFont s_font_wx;      // Weather Icons 25, condition glyph
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -87,6 +90,46 @@ static int32_t trig_angle(float deg) {
   return (int32_t)((float)TRIG_MAX_ANGLE * deg / 360.0f);
 }
 
+// A sharp-cornered radial bar (filled quad) from radius ri to ro, half-width hw,
+// at angle deg. Used for the Mondaine hour markers, which are square-ended, not
+// the rounded caps a thick stroked line would give.
+static void fill_bar(GContext *ctx, GPoint center, float deg, int ri, int ro, int hw, GColor col) {
+  int32_t a = trig_angle(deg) & 0xFFFF;
+  int px = hw * cos_lookup(a) / TRIG_MAX_RATIO;   // perpendicular offset = hw * (cos, sin)
+  int py = hw * sin_lookup(a) / TRIG_MAX_RATIO;
+  GPoint pin = point_at(center, deg, ri);
+  GPoint pout = point_at(center, deg, ro);
+  GPoint pts[4] = {
+    { pin.x - px,  pin.y - py },
+    { pout.x - px, pout.y - py },
+    { pout.x + px, pout.y + py },
+    { pin.x + px,  pin.y + py },
+  };
+  GPathInfo info = { .num_points = 4, .points = pts };
+  GPath *p = gpath_create(&info);
+  graphics_context_set_fill_color(ctx, col);
+  gpath_draw_filled(ctx, p);
+  gpath_destroy(p);
+}
+
+// A horizontal battery glyph centred on `c`, filled proportionally to `pct`
+// (0..100). The fill turns red at or below 20%, matching the digital face.
+static void draw_battery(GContext *ctx, GPoint c, int pct, bool charging, GColor fg) {
+  int w = 30, h = 15, nub = 3;
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  GRect body = GRect(c.x - w / 2, c.y - h / 2, w, h);
+  graphics_context_set_stroke_color(ctx, fg);
+  graphics_context_set_stroke_width(ctx, 1);
+  graphics_draw_rect(ctx, body);
+  graphics_context_set_fill_color(ctx, fg);
+  graphics_fill_rect(ctx, GRect(body.origin.x + w, c.y - 4, nub, 8), 0, GCornerNone);
+  int inner = w - 4;
+  graphics_context_set_fill_color(ctx, (pct <= 20 && !charging) ? GColorRed : fg);
+  graphics_fill_rect(ctx, GRect(body.origin.x + 2, body.origin.y + 2, inner * pct / 100, h - 4),
+                     0, GCornerNone);
+}
+
 static int today_steps(void) {
 #if defined(PBL_HEALTH)
   HealthServiceAccessibilityMask m =
@@ -106,7 +149,7 @@ static int current_hr(void) {
 }
 
 // The condition glyph is a Weather Icons codepoint (Private Use Area), rendered
-// with the bundled Weather Icons font — proper vector weather symbols rather than
+// with the bundled Weather Icons font: proper vector weather symbols rather than
 // hand-drawn shapes. WMO codes collapse into a handful of buckets.
 static const char *wx_glyph(int code) {
   if (code <= 1)                                  return "\xEF\x80\x8D";  // f00d clear/sunny
@@ -144,29 +187,31 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, bg);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
-  // Minute track: long bold bars at the hours, thin strokes at the minutes —
-  // the Mondaine railway dial (no numerals).
+  // Minute track: square-ended bold bars at the hours, thin strokes at the
+  // minutes. The Mondaine railway dial (no numerals).
   for (int i = 0; i < 60; i++) {
-    bool is_hour = (i % 5 == 0);
     float deg = 360.0f * i / 60.0f;
-    graphics_context_set_stroke_color(ctx, fg);
-    graphics_context_set_stroke_width(ctx, is_hour ? 5 : 1);
-    graphics_draw_line(ctx, point_at(center, deg, R - (is_hour ? 17 : 6)),
-                            point_at(center, deg, R));
+    if (i % 5 == 0) {
+      fill_bar(ctx, center, deg, R - 17, R, 3, fg);   // sharp hour bar
+    } else {
+      graphics_context_set_stroke_color(ctx, fg);
+      graphics_context_set_stroke_width(ctx, 1);
+      graphics_draw_line(ctx, point_at(center, deg, R - 6), point_at(center, deg, R));
+    }
   }
 
   int f = R * 47 / 100;                            // subdial centre distance
-  GPoint pL = point_at(center, 270, f);            // left  — weather
-  GPoint pR = point_at(center, 90, f);             // right — day
-  GPoint pB = point_at(center, 180, f);            // bottom — steps/heart
+  GPoint pL = point_at(center, 270, f);            // left: weather
+  GPoint pR = point_at(center, 90, f);             // right: day
+  GPoint pB = point_at(center, 180, f);            // bottom: steps/heart
 
-  // AURA wordmark, upper dial (no logo — original wordmark).
+  // AURA wordmark, upper dial (no logo: original wordmark).
   if (s_wordmark) {
     draw_centered(ctx, "AURA", s_font_label, point_at(center, 0, R * 42 / 100), fg);
   }
 
-  // Subdials — contents only, no ring outline.
-  // LEFT — weather: condition glyph over temperature.
+  // Subdials: contents only, no ring outline.
+  // LEFT: weather: condition glyph over temperature.
   {
     char tbuf[8];
     if (s_wx_ok) {
@@ -178,27 +223,34 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
     draw_centered(ctx, tbuf, s_font_data, GPoint(pL.x, pL.y + 10), fg);
   }
 
-  // RIGHT — day, "WWW DD".
+  // RIGHT: day, "WWW DD", red on Sundays (calendar convention).
   {
     time_t now = time(NULL);
+    struct tm *dt = localtime(&now);
     char d[12];
-    strftime(d, sizeof(d), "%a %d", localtime(&now));
+    strftime(d, sizeof(d), "%a %d", dt);
     for (int i = 0; i < 3 && d[i]; i++)
       if (d[i] >= 'a' && d[i] <= 'z') d[i] -= 32;    // MON 01
-    draw_centered(ctx, d, s_font_label, pR, fg);
+    draw_centered(ctx, d, s_font_label, pR, dt->tm_wday == 0 ? GColorRed : fg);
   }
 
-  // BOTTOM — steps or heart rate.
-  {
+  // BOTTOM: battery (default), steps, or heart rate.
+  if (s_bottom == BOTTOM_BATTERY) {
+    BatteryChargeState b = battery_state_service_peek();
+    char nbuf[8];
+    draw_battery(ctx, GPoint(pB.x, pB.y - 9), b.charge_percent, b.is_charging, fg);
+    snprintf(nbuf, sizeof(nbuf), "%d%%", b.charge_percent);
+    draw_centered(ctx, nbuf, s_font_data, GPoint(pB.x, pB.y + 11), fg);
+  } else {
     char nbuf[12];
-    int v = s_bottom_heart ? current_hr() : today_steps();
+    int v = (s_bottom == BOTTOM_HEART) ? current_hr() : today_steps();
     if (v < 0) snprintf(nbuf, sizeof(nbuf), "--");
     else       snprintf(nbuf, sizeof(nbuf), "%d", v);
     draw_centered(ctx, nbuf, s_font_data, pB, fg);
   }
 
   // Hands (over the subdials, chronograph-style). Take seconds and milliseconds
-  // from a single time_ms() sample — reading tm_sec and ms from two separate
+  // from a single time_ms() sample: reading tm_sec and ms from two separate
   // clock reads makes them disagree at the second boundary, which snaps the
   // sweeping hand backwards ~5° once per second.
   time_t now;
@@ -216,7 +268,7 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   if (s_seconds) {
     // The seconds and milliseconds fields are latched from separate reads, so
     // near a boundary they disagree (e.g. tm_sec=2 while ms has already wrapped
-    // to 6 — real time 3.006). Reading tm_sec+ms directly snaps the hand back
+    // to 6: real time 3.006). Reading tm_sec+ms directly snaps the hand back
     // ~1 s each second. Instead keep our own second-of-minute: advance it when
     // ms wraps downward, and resync to the OS clock only mid-second, where the
     // two fields provably agree.
@@ -233,7 +285,7 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
     float sec = s_disp_sec + ms / 1000.0f;
     float sdeg = (sec < SWEEP_SECONDS) ? 360.0f * (sec / SWEEP_SECONDS) : 0.0f;
     // Mondaine second hand: a thin red stem with a counterweight tail, ending in
-    // the red signal disc (a lollipop) — the stem stops at the disc, no pin past it.
+    // the red signal disc (a lollipop): the stem stops at the disc, no pin past it.
     GPoint disc = point_at(center, sdeg, R * 73 / 100);
     graphics_context_set_stroke_color(ctx, GColorRed);
     graphics_context_set_stroke_width(ctx, 2);
@@ -297,7 +349,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_wordmark = tp->value->int32; persist_write_bool(PKEY_WORDMARK, s_wordmark);
   }
   if ((tp = dict_find(iter, MESSAGE_KEY_BOTTOM))) {
-    s_bottom_heart = tp->value->int32; persist_write_bool(PKEY_BOTTOM, s_bottom_heart);
+    // Clay's select may arrive as an int or a numeric string; accept both.
+    s_bottom = (tp->type == TUPLE_CSTRING) ? atoi(tp->value->cstring) : (int)tp->value->int32;
+    persist_write_int(PKEY_BOTTOM, s_bottom);
   }
   if ((tp = dict_find(iter, MESSAGE_KEY_WX_OK))) {
     s_wx_ok = tp->value->int32; persist_write_bool(PKEY_WX_OK, s_wx_ok);
@@ -315,7 +369,7 @@ static void load_settings(void) {
   if (persist_exists(PKEY_SECONDS))  s_seconds = persist_read_bool(PKEY_SECONDS);
   if (persist_exists(PKEY_THEME))    s_theme_dark = persist_read_bool(PKEY_THEME);
   if (persist_exists(PKEY_WORDMARK)) s_wordmark = persist_read_bool(PKEY_WORDMARK);
-  if (persist_exists(PKEY_BOTTOM))   s_bottom_heart = persist_read_bool(PKEY_BOTTOM);
+  if (persist_exists(PKEY_BOTTOM))   s_bottom = persist_read_int(PKEY_BOTTOM);
   if (persist_exists(PKEY_WX_TEMP))  s_wx_temp = persist_read_int(PKEY_WX_TEMP);
   if (persist_exists(PKEY_WX_CODE))  s_wx_code = persist_read_int(PKEY_WX_CODE);
   if (persist_exists(PKEY_WX_OK))    s_wx_ok = persist_read_bool(PKEY_WX_OK);
@@ -339,8 +393,8 @@ static void window_load(Window *window) {
   gpath_move_to(s_hour_path, s_center);
   gpath_move_to(s_min_path, s_center);
 
-  s_font_data  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_18));
-  s_font_label = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_14));
+  s_font_data  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_20));
+  s_font_label = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_16));
   s_font_wx    = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_WI_25));
 
   s_face_layer = layer_create(bounds);
@@ -366,6 +420,12 @@ static void init(void) {
     .unload = window_unload,
   });
   window_stack_push(s_window, true);
+
+  // Keep the backlight on so the face is legible on the emulator (whose LCD
+  // renders dim on a desktop monitor). NB this also holds the light on real
+  // hardware, which costs battery; gate or drop it before shipping if that
+  // matters.
+  light_enable(true);
 
   app_message_register_inbox_received(inbox_received_handler);
   app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
