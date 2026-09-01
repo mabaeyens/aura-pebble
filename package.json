@@ -1,0 +1,47 @@
+{
+  "name": "aura-essential",
+  "author": "Miguel Angel Baeyens",
+  "version": "1.0.0",
+  "keywords": ["pebble-app"],
+  "private": true,
+  "dependencies": {
+    "pebble-clay": "^1.0.4"
+  },
+  "pebble": {
+    "displayName": "Aura Essential",
+    "uuid": "cda87ba0-ceec-4d56-99f3-9dfec49bd115",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "capabilities": [
+      "configurable",
+      "location",
+      "health"
+    ],
+    "targetPlatforms": [
+      "aplite",
+      "basalt",
+      "chalk",
+      "diorite",
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "messageKeys": [
+      "SLOT1",
+      "SLOT2",
+      "SLOT3",
+      "BGCOLOR",
+      "UNITS",
+      "LOCMODE",
+      "LAT",
+      "LON",
+      "WX_TEMP",
+      "WX_CODE",
+      "WX_OK"
+    ],
+    "resources": {
+      "media": []
+    }
+  }
+}
