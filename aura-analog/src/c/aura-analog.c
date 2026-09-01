@@ -5,7 +5,8 @@
 // A Swiss-railway chronograph, close homage to the Mondaine Grand Cushion Set
 // Black (see the Design-origin note in README.md): white or black dial (settings),
 // black/white baton hands, a red second hand with the red lollipop disc, twelve
-// identical bold hour markers, and four subdial slots at 12/9/3/6.
+// identical bold hour markers with four minute ticks between each (the Mondaine
+// MSL.3961B railway dial), and four subdial slots at 12/9/3/6.
 // Each slot is independently configurable to one of: nothing, the AURA wordmark,
 // weather (temperature and a condition glyph, fed from the phone over AppMessage
 // via PebbleKit JS to Open-Meteo), the day ("WWW DD", red on Sundays), the date,
@@ -103,26 +104,18 @@ static int32_t trig_angle(float deg) {
   return (int32_t)((float)TRIG_MAX_ANGLE * deg / 360.0f);
 }
 
-// A sharp-cornered radial bar (filled quad) from radius ri to ro, half-width hw,
-// at angle deg. Used for the Mondaine hour markers, which are square-ended, not
-// the rounded caps a thick stroked line would give.
-static void fill_bar(GContext *ctx, GPoint center, float deg, int ri, int ro, int hw, GColor col) {
-  int32_t a = trig_angle(deg) & 0xFFFF;
-  int px = hw * cos_lookup(a) / TRIG_MAX_RATIO;   // perpendicular offset = hw * (cos, sin)
-  int py = hw * sin_lookup(a) / TRIG_MAX_RATIO;
-  GPoint pin = point_at(center, deg, ri);
-  GPoint pout = point_at(center, deg, ro);
-  GPoint pts[4] = {
-    { pin.x - px,  pin.y - py },
-    { pout.x - px, pout.y - py },
-    { pout.x + px, pout.y + py },
-    { pin.x + px,  pin.y + py },
-  };
-  GPathInfo info = { .num_points = 4, .points = pts };
-  GPath *p = gpath_create(&info);
-  graphics_context_set_fill_color(ctx, col);
-  gpath_draw_filled(ctx, p);
-  gpath_destroy(p);
+// A radial tick from radius ri to ro at angle deg, drawn as an anti-aliased
+// stroked line of the given (odd) width. A stroked line keeps the SAME width at
+// every angle because the graphics layer anti-aliases strokes; a filled quad
+// does not (fills are never anti-aliased), so hand-rolled quads quantise to the
+// pixel grid and render ~1px wider on the diagonals. This is how the dial gets
+// twelve identical hour bars and forty-eight identical minute ticks. The one
+// cost is slightly rounded caps instead of dead-square ends. Stroke width must
+// be odd (the SDK rounds an even width down).
+static void draw_tick(GContext *ctx, GPoint center, float deg, int ri, int ro, uint8_t width, GColor col) {
+  graphics_context_set_stroke_color(ctx, col);
+  graphics_context_set_stroke_width(ctx, width);
+  graphics_draw_line(ctx, point_at(center, deg, ri), point_at(center, deg, ro));
 }
 
 // A horizontal battery glyph centred on `c`, filled proportionally to `pct`
@@ -277,18 +270,20 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, bg);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
-  // Minute track: square-ended bold bars at the hours, thin strokes at the
-  // minutes. The Mondaine railway dial (no numerals).
+  // Minute track: bold bars at the hours, thin ticks at the minutes, the
+  // Mondaine railway dial (no numerals). Anti-aliased strokes so every hour bar
+  // is the exact same width and every minute tick the exact same width, with no
+  // per-angle quantisation. Widths are odd (the SDK requires it).
+  graphics_context_set_antialiased(ctx, true);
   for (int i = 0; i < 60; i++) {
     float deg = 360.0f * i / 60.0f;
     if (i % 5 == 0) {
-      // All twelve hour indices are identical bold square bars, same length and
-      // thickness, as on the Grand Cushion dial (no cardinal is longer or wider).
-      fill_bar(ctx, center, deg, R - 17, R, 4, fg);
+      // Twelve identical bold hour bars: length ~0.26 R (r74 to r94), width 7.
+      draw_tick(ctx, center, deg, R * 74 / 100, R, 7, fg);
     } else {
-      graphics_context_set_stroke_color(ctx, fg);
-      graphics_context_set_stroke_width(ctx, 1);
-      graphics_draw_line(ctx, point_at(center, deg, R - 6), point_at(center, deg, R));
+      // Forty-eight identical minute ticks (four per hour): length ~0.09 R
+      // sharing the hour bars' outer radius, width 3.
+      draw_tick(ctx, center, deg, R * 91 / 100, R, 3, fg);
     }
   }
 
