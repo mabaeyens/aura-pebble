@@ -234,8 +234,12 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
                        GRect(pB.x - sr, pB.y - 10, sr * 2, 20), fg);
   }
 
-  // Hands (over the subdials, chronograph-style).
-  time_t now = time(NULL);
+  // Hands (over the subdials, chronograph-style). Take seconds and milliseconds
+  // from a single time_ms() sample — reading tm_sec and ms from two separate
+  // clock reads makes them disagree at the second boundary, which snaps the
+  // sweeping hand backwards ~5° once per second.
+  time_t now;
+  uint16_t ms = time_ms(&now, NULL);
   struct tm *t = localtime(&now);
   float hour_deg = 360.0f * (((t->tm_hour % 12) + t->tm_min / 60.0f) / 12.0f);
   float min_deg  = 360.0f * (t->tm_min / 60.0f);
@@ -247,8 +251,23 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   gpath_draw_filled(ctx, s_min_path);
 
   if (s_seconds) {
-    uint16_t ms = time_ms(NULL, NULL);
-    float sec = t->tm_sec + ms / 1000.0f;
+    // The seconds and milliseconds fields are latched from separate reads, so
+    // near a boundary they disagree (e.g. tm_sec=2 while ms has already wrapped
+    // to 6 — real time 3.006). Reading tm_sec+ms directly snaps the hand back
+    // ~1 s each second. Instead keep our own second-of-minute: advance it when
+    // ms wraps downward, and resync to the OS clock only mid-second, where the
+    // two fields provably agree.
+    static int s_disp_sec = -1;
+    static uint16_t s_prev_ms = 0;
+    if (s_disp_sec < 0) s_disp_sec = t->tm_sec;                    // seed once
+    if (ms + 200 < s_prev_ms) s_disp_sec = (s_disp_sec + 1) % 60;  // ms wrapped: +1s
+    s_prev_ms = ms;
+    // The OS seconds field lags the ms field by a variable fraction of a second,
+    // so only correct genuine drift (>2 s), never that ±1 s boundary lag.
+    int drift = (s_disp_sec - t->tm_sec + 60) % 60;
+    if (drift > 2 && drift < 58) s_disp_sec = t->tm_sec;
+
+    float sec = s_disp_sec + ms / 1000.0f;
     float sdeg = (sec < SWEEP_SECONDS) ? 360.0f * (sec / SWEEP_SECONDS) : 0.0f;
     graphics_context_set_stroke_color(ctx, GColorRed);
     graphics_context_set_stroke_width(ctx, 2);
