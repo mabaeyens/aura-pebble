@@ -23,9 +23,11 @@ phone-bridged feature.
 | Face | What it is | Status |
 |------|------------|--------|
 | **aura-digital** | Minimalist digital face — step count, time, date, and battery, with an accent colour that tracks the time of day (echoing Aura's sun-tracking sky). | Phase 1 |
-| **aura-analog** | Analog face reproducing the Swiss-Railways **stop-to-go** seconds mechanic (the hand sweeps the dial, then pauses at 12 each minute), on an original Aura dial. | Phase 2, planned |
+| **aura-analog** | Analog face reproducing the Swiss-Railways **stop-to-go** seconds mechanic (the hand sweeps a full turn in ~58 s, then pauses at 12 for ~2 s and releases as the minute jumps), on an original dark Aura dial. | Phase 2 |
 
-![Aura digital face on the Pebble Time 2 emulator](docs/emery-preview.png)
+Digital (Phase 1) and analog (Phase 2), on the Pebble Time 2 emulator:
+
+![Aura digital face](docs/emery-preview.png) ![Aura analog face](docs/analog-preview.png)
 
 ## Build & run
 
