@@ -15,19 +15,19 @@ Aura on the phone renders ~250 illustrated weather scenes over a live sky. A Peb
 ~128 KB of code and ~256 KB of resources on a 200×228, 64-colour screen — so none of that art
 or logic ports. What carries over is Aura's **design language**: its weather-driven colour
 ramps (temperature, wind, air quality, UV) and its habit of showing one glanceable thing well.
-The faces here are standalone clocks in that language; live weather is a later, optional
-phone-bridged feature.
+The faces here are standalone clocks in that language; the analog face adds an optional live
+weather complication, fed from the phone.
 
 ## Faces
 
 | Face | What it is | Status |
 |------|------------|--------|
 | **aura-digital** | Minimalist digital face — step count, time, date, and battery, with an accent colour that tracks the time of day (echoing Aura's sun-tracking sky). | Phase 1 |
-| **aura-analog** | A Swiss-railway clock with the **stop-to-go** second hand (sweeps a full turn in ~58 s, pauses at 12 for ~2 s, then releases as the minute jumps): white dial, black baton hands, red lollipop second hand. See [Design origin](#design-origin). | Phase 2 |
+| **aura-analog** | A Swiss-railway clock with the **stop-to-go** second hand (sweeps a full turn in ~58 s, pauses at 12 for ~2 s, then releases as the minute jumps): white or black dial, black/white baton hands, red lollipop second hand, and three chronograph subdials — live weather (left), day as `WWW DD` (right), and steps or heart rate (bottom) — under an AURA wordmark. Configurable ([Settings](#settings)). See [Design origin](#design-origin). | Phase 2 |
 
-Digital (Phase 1) and analog (Phase 2), on the Pebble Time 2 emulator:
+Digital (Phase 1), then the analog face (Phase 2) on its light and low-power black dials, on the Pebble Time 2 emulator:
 
-![Aura digital face](docs/emery-preview.png) ![Aura analog face](docs/analog-preview.png)
+![Aura digital face](docs/emery-preview.png) ![Aura analog, light dial](docs/analog-light.png) ![Aura analog, black dial](docs/analog-dark.png)
 
 ## Build & run
 
@@ -44,6 +44,19 @@ pebble install --emulator emery   # Emery = Pebble Time 2 (retry once if it says
 
 To run on a real watch, enable **Dev Connect** in the Pebble phone app, then
 `pebble install --cloudpebble`.
+
+## Settings
+
+The analog face has a settings screen (open it from the Pebble phone app), built with
+[Clay](https://github.com/pebble-dev/clay). From there you can choose the black dial (lower
+power on OLED), toggle the second hand, the AURA wordmark, and whether the bottom subdial
+shows steps or heart rate, and set weather units.
+
+Weather comes from [Open-Meteo](https://open-meteo.com) — no API key, so it stays free for
+anyone. The phone (PebbleKit JS) fetches the current temperature and condition for your GPS
+location, or a latitude/longitude you enter manually, and pushes them to the watch, refreshing
+every 30 minutes. The face works fine offline — the weather subdial just reads `--°` until a
+reading arrives.
 
 ## Docs
 
