@@ -103,6 +103,19 @@ static GFont time_font(void) {
   }
 }
 
+// Each font's line box pads the digits asymmetrically (leading above the ink),
+// so centring by the measured content height leaves the digits sitting low.
+// These offsets pull the ink back to the true vertical centre; LECO 60 was
+// measured 9px low on emery, the others are near-centred.
+static int time_voffset(void) {
+  switch (s_font) {
+    case 1:  return -3;   // Roboto 49
+    case 2:  return -2;   // Bitham 42
+    case 3:  return  0;   // Gothic 28
+    default: return -9;   // LECO
+  }
+}
+
 static void upcase(char *s) {
   for (; *s; s++) if (*s >= 'a' && *s <= 'z') *s -= 32;
 }
@@ -361,7 +374,7 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   GFont tf = time_font();
   GRect band = GRect(0, band_y, w, band_h);
   GSize sz = graphics_text_layout_get_content_size(tbuf, tf, band, GTextOverflowModeFill, GTextAlignmentCenter);
-  int ty = band_y + (band_h - sz.h) / 2;
+  int ty = band_y + (band_h - sz.h) / 2 + time_voffset();
   graphics_context_set_text_color(ctx, band_fg);
   graphics_draw_text(ctx, tbuf, tf, GRect(0, ty, w, sz.h + 8),
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
