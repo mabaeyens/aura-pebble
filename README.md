@@ -23,7 +23,7 @@ phone-bridged feature.
 | Face | What it is | Status |
 |------|------------|--------|
 | **aura-digital** | Minimalist digital face — step count, time, date, and battery, with an accent colour that tracks the time of day (echoing Aura's sun-tracking sky). | Phase 1 |
-| **aura-analog** | Analog face reproducing the Swiss-Railways **stop-to-go** seconds mechanic (the hand sweeps a full turn in ~58 s, then pauses at 12 for ~2 s and releases as the minute jumps), on an original dark Aura dial. | Phase 2 |
+| **aura-analog** | A Swiss-railway clock with the **stop-to-go** second hand (sweeps a full turn in ~58 s, pauses at 12 for ~2 s, then releases as the minute jumps): white dial, black baton hands, red lollipop second hand. See [Design origin](#design-origin). | Phase 2 |
 
 Digital (Phase 1) and analog (Phase 2), on the Pebble Time 2 emulator:
 
@@ -47,13 +47,19 @@ To run on a real watch, enable **Dev Connect** in the Pebble phone app, then
 
 ## Docs
 
-- [`CLAUDE.md`](CLAUDE.md) — toolchain commands, build settings, and the phase roadmap.
 - [`docs/PALETTE.md`](docs/PALETTE.md) — Aura's colour ramps re-encoded to the 64-colour Pebble palette.
 - [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md) — how a face gets published to apps.repebble.com.
 
-## Credit
+## Design origin
 
-Built with [Claude Code](https://claude.com/claude-code).
+The analog face is a homage to the Mondaine "Official Swiss Railways" clock and its *stop2go*
+second hand. The Mondaine name and that dial design are protected trademarks / registered
+designs of Mondaine Watch Ltd; this is an independent, non-commercial reimplementation for
+PebbleOS, not affiliated with or endorsed by Mondaine or SBB. All code here is original.
+
+## Built with
+
+[Claude Code](https://claude.com/claude-code) (Anthropic).
 
 ## License
 
