@@ -96,9 +96,9 @@ static GFont time_font(void) {
     case 3:  return fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
     default:
 #ifdef PBL_PLATFORM_EMERY
-      return fonts_get_system_font(FONT_KEY_LECO_60_NUMBERS_AM_PM);   // Pebble Time 2
+      return fonts_get_system_font(FONT_KEY_LECO_60_BOLD_NUMBERS_AM_PM);  // Pebble Time 2
 #else
-      return fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);         // no 60px LECO here
+      return fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);             // no 60px LECO here
 #endif
   }
 }
@@ -321,8 +321,9 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   GColor band_fg = content_on(band_bg);
 
   int band_y = h * 44 / 100;   // top block ~44%
-  int band_h = h * 36 / 100;   // time band ~36%
-  int bot_y  = band_y + band_h;
+  int bot_h  = h * 10 / 100;   // short empty strip at the bottom
+  int bot_y  = h - bot_h;
+  int band_h = bot_y - band_y; // time band gets the rest
 
   // Top block: solid colour + three complications.
   graphics_context_set_fill_color(ctx, top_bg);
