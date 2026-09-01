@@ -176,7 +176,7 @@ static void icon_shoe(GContext *ctx, int cx, int cy, GColor col) {
 }
 
 // A vertical battery, filled from the bottom by pct.
-static void icon_battery(GContext *ctx, int cx, int cy, GColor col, int pct, bool chg) {
+static void icon_battery(GContext *ctx, int cx, int cy, GColor col, int pct) {
   int w = 20, h = 32;
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;
@@ -188,7 +188,6 @@ static void icon_battery(GContext *ctx, int cx, int cy, GColor col, int pct, boo
   graphics_draw_rect(ctx, body);
   int inner = h - 8;
   int fill = inner * pct / 100;
-  graphics_context_set_fill_color(ctx, (pct <= 20 && !chg) ? GColorRed : col);
   graphics_fill_rect(ctx, GRect(body.origin.x + 4, body.origin.y + 4 + (inner - fill), w - 8, fill),
                      0, GCornerNone);
 }
@@ -269,19 +268,20 @@ static void icon_weather(GContext *ctx, int cx, int cy, GColor col, int code, bo
   }
 }
 
-// One top complication: a big icon (centred on icon_cy) with a big bold label
-// tucked just beneath it.
-static void draw_comp(GContext *ctx, int type, int cx, int cell_w, GColor fg) {
-  if (type == C_NONE) return;
+// Draw one complication (icon + label) at a pixel offset, all in one colour.
+// Called many times to build the outline: eight black passes at 1px offsets,
+// then one white pass on top, giving white fill with a black outline like the
+// original Essential.
+static void render_comp(GContext *ctx, int type, int cx, int cell_w, int dx, int dy, GColor col) {
   const int icon_cy = 42;
   const int label_y = 62;
+  int icx = cx + dx, icy = icon_cy + dy;
   char label[12];
-  GColor lcol = fg;
 
   switch (type) {
     case C_STEPS: {
       int s = today_steps();
-      icon_shoe(ctx, cx, icon_cy, fg);
+      icon_shoe(ctx, icx, icy, col);
       if (s < 0)           snprintf(label, sizeof(label), "--");
       else if (s >= 10000) snprintf(label, sizeof(label), "%dk", s / 1000);
       else                 snprintf(label, sizeof(label), "%d", s);
@@ -289,28 +289,27 @@ static void draw_comp(GContext *ctx, int type, int cx, int cell_w, GColor fg) {
     }
     case C_HEART: {
       int hr = current_hr();
-      icon_heart(ctx, cx, icon_cy, fg);
+      icon_heart(ctx, icx, icy, col);
       if (hr < 0) snprintf(label, sizeof(label), "--");
       else        snprintf(label, sizeof(label), "%d", hr);
       break;
     }
     case C_BATTERY: {
       BatteryChargeState b = battery_state_service_peek();
-      icon_battery(ctx, cx, icon_cy, fg, b.charge_percent, b.is_charging);
+      icon_battery(ctx, icx, icy, col, b.charge_percent);
       snprintf(label, sizeof(label), "%d%%", b.charge_percent);
-      if (b.charge_percent <= 20 && !b.is_charging) lcol = GColorRed;
       break;
     }
     case C_DAY: {
       time_t now = time(NULL);
       struct tm *t = localtime(&now);
-      icon_calendar(ctx, cx, icon_cy, fg, t->tm_mday);
+      icon_calendar(ctx, icx, icy, col, t->tm_mday);
       strftime(label, sizeof(label), "%a", t);
       upcase(label);
       break;
     }
     case C_WEATHER: {
-      icon_weather(ctx, cx, icon_cy, fg, s_wx_code, s_wx_ok);
+      icon_weather(ctx, icx, icy, col, s_wx_code, s_wx_ok);
       if (s_wx_ok) snprintf(label, sizeof(label), "%d\xC2\xB0", s_wx_temp);
       else         snprintf(label, sizeof(label), "--");
       break;
@@ -318,9 +317,19 @@ static void draw_comp(GContext *ctx, int type, int cx, int cell_w, GColor fg) {
     default: return;
   }
 
-  graphics_context_set_text_color(ctx, lcol);
-  graphics_draw_text(ctx, label, s_f_label, GRect(cx - cell_w / 2, label_y, cell_w, 32),
+  graphics_context_set_text_color(ctx, col);
+  graphics_draw_text(ctx, label, s_f_label, GRect(cx - cell_w / 2 + dx, label_y + dy, cell_w, 32),
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+}
+
+// White fill with a black outline: a black halo in the eight neighbouring
+// directions, then the white fill on top.
+static void draw_comp(GContext *ctx, int type, int cx, int cell_w) {
+  if (type == C_NONE) return;
+  static const int ox[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
+  static const int oy[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
+  for (int k = 0; k < 8; k++) render_comp(ctx, type, cx, cell_w, ox[k], oy[k], GColorBlack);
+  render_comp(ctx, type, cx, cell_w, 0, 0, GColorWhite);
 }
 
 static void face_update_proc(Layer *layer, GContext *ctx) {
@@ -330,7 +339,6 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   GColor top_bg  = palette(s_top);
   GColor band_bg = palette(s_band);
   GColor bot_bg  = palette(s_bot);
-  GColor top_fg  = content_on(top_bg);
   GColor band_fg = content_on(band_bg);
 
   int band_y = h * 44 / 100;   // top block ~44%
@@ -343,7 +351,7 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   graphics_fill_rect(ctx, GRect(0, 0, w, band_y), 0, GCornerNone);
   int cw = w / 3;
   for (int i = 0; i < 3; i++) {
-    draw_comp(ctx, s_slot[i], cw / 2 + i * cw, cw, top_fg);
+    draw_comp(ctx, s_slot[i], cw / 2 + i * cw, cw);
   }
 
   // Middle time band.
