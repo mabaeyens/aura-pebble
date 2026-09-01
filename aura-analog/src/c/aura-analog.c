@@ -4,8 +4,8 @@
 //
 // A Swiss-railway chronograph, close homage to the Mondaine Grand Cushion Set
 // Black (see the Design-origin note in README.md): white or black dial (settings),
-// black/white baton hands, a red second hand with the red lollipop disc, bold hour
-// markers with a wider double baton at 3 and 9, and four subdial slots at 12/9/3/6.
+// black/white baton hands, a red second hand with the red lollipop disc, twelve
+// identical bold hour markers, and four subdial slots at 12/9/3/6.
 // Each slot is independently configurable to one of: nothing, the AURA wordmark,
 // weather (temperature and a condition glyph, fed from the phone over AppMessage
 // via PebbleKit JS to Open-Meteo), the day ("WWW DD", red on Sundays), the date,
@@ -282,10 +282,9 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   for (int i = 0; i < 60; i++) {
     float deg = 360.0f * i / 60.0f;
     if (i % 5 == 0) {
-      // Bold square hour bars, with a wider double baton at 3 and 9 (i=15, i=45),
-      // as on the Grand Cushion dial.
-      int hw = (i == 15 || i == 45) ? 5 : 3;
-      fill_bar(ctx, center, deg, R - 17, R, hw, fg);
+      // All twelve hour indices are identical bold square bars, same length and
+      // thickness, as on the Grand Cushion dial (no cardinal is longer or wider).
+      fill_bar(ctx, center, deg, R - 17, R, 4, fg);
     } else {
       graphics_context_set_stroke_color(ctx, fg);
       graphics_context_set_stroke_width(ctx, 1);
