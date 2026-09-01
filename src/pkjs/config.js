@@ -2,8 +2,8 @@
 // Values are strings that the C parses as ints (see tuple_int in aura-essential.c).
 //  - SLOT1/2/3 pick each top complication (0 none, 1 steps, 2 heart rate,
 //    3 battery, 4 day, 5 weather); matches the C_* enum.
-//  - TOPCOLOR / BANDCOLOR pick the two block colours; the C derives black or
-//    white content from each block's luminance so text stays readable.
+//  - TOPCOLOR / BANDCOLOR / BOTCOLOR pick the three block colours; the C derives
+//    black or white content from each block's luminance so text stays readable.
 //  - TIMEFONT picks the clock face (matches the time_font() switch in the C).
 //  - SEPCOLOR colours the separator line; "-1" turns it off.
 var SLOT_OPTIONS = [
@@ -54,6 +54,7 @@ module.exports = [
       { "type": "heading", "defaultValue": "Colours" },
       { "type": "select", "messageKey": "TOPCOLOR", "label": "Top block", "defaultValue": "0", "options": COLOR_OPTIONS },
       { "type": "select", "messageKey": "BANDCOLOR", "label": "Time band", "defaultValue": "7", "options": COLOR_OPTIONS },
+      { "type": "select", "messageKey": "BOTCOLOR", "label": "Bottom block", "defaultValue": "0", "options": COLOR_OPTIONS },
       { "type": "select", "messageKey": "SEPCOLOR", "label": "Separator", "defaultValue": "6", "options": SEP_OPTIONS }
     ]
   },

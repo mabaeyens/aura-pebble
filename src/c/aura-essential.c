@@ -2,13 +2,15 @@
 
 // Aura Essential watchface
 // A close homage to the "Essential" layout (Kiezel), sized natively for the
-// Pebble Time 2 (200x228, 64-colour): two clean areas. A top block carries
-// three configurable icon + label complications; a large clock sits in the
-// band below it. Everything is configurable from the phone (Clay): each of the
-// three slots (steps / heart rate / battery / day of week / weather), the two
-// block colours, the clock font and the separator. Content colour (black or
-// white) is derived from each block's luminance so text always reads. Weather
-// arrives over AppMessage (Open-Meteo, no API key); the rest is standalone.
+// Pebble Time 2 (200x228, 64-colour): three horizontal blocks. The top block
+// carries three configurable icon + label complications (big icons, big bold
+// numbers); the middle band holds a large clock; the bottom block is a clean
+// empty colour strip. Everything is configurable from the phone (Clay): each of
+// the three slots (steps / heart rate / battery / day of week / weather), the
+// three block colours, the clock font and the separator. Content colour (black
+// or white) is derived from each block's luminance so text always reads.
+// Weather arrives over AppMessage (Open-Meteo, no API key); the rest is
+// standalone.
 
 // ---- Complication kinds (values shared with src/pkjs/config.js) -----------
 #define C_NONE    0
@@ -44,6 +46,7 @@ static const uint32_t COLOR_HEX[10] = {
 #define PKEY_BANDCOLOR 11
 #define PKEY_TIMEFONT  12
 #define PKEY_SEPCOLOR  13
+#define PKEY_BOTCOLOR  14
 
 // This SDK emits the MESSAGE_KEY_* ids into message_keys.auto.c but leaves them
 // undeclared in the auto header, so declare the ones we read as extern here.
@@ -52,6 +55,7 @@ extern uint32_t MESSAGE_KEY_SLOT2;
 extern uint32_t MESSAGE_KEY_SLOT3;
 extern uint32_t MESSAGE_KEY_TOPCOLOR;
 extern uint32_t MESSAGE_KEY_BANDCOLOR;
+extern uint32_t MESSAGE_KEY_BOTCOLOR;
 extern uint32_t MESSAGE_KEY_TIMEFONT;
 extern uint32_t MESSAGE_KEY_SEPCOLOR;
 extern uint32_t MESSAGE_KEY_WX_TEMP;
@@ -64,13 +68,14 @@ static Layer  *s_layer;
 static int  s_slot[3]  = { C_STEPS, C_HEART, C_BATTERY };  // default top row
 static int  s_top      = 0;   // top block colour index
 static int  s_band     = 7;   // time band colour index (white)
+static int  s_bot      = 0;   // bottom block colour index
 static int  s_font     = 0;   // time font index
 static int  s_sep      = 6;   // separator colour index (black); -1 = off
 static int  s_wx_temp  = 0;
 static int  s_wx_code  = 0;
 static bool s_wx_ok    = false;
 
-static GFont s_f_label;   // complication labels (bold)
+static GFont s_f_label;   // complication labels (big bold)
 static GFont s_f_small;   // day-of-month inside the calendar glyph
 
 static GColor palette(int i) {
@@ -131,13 +136,13 @@ static int wx_category(int code) {
   return WX_CLOUD;
 }
 
-// ---- Complication icons (drawn in code, ~34px, so the face carries no PNGs) -
+// ---- Complication icons (drawn in code, ~40px, so the face carries no PNGs) -
 
 static void icon_heart(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_circle(ctx, GPoint(cx - 6, cy - 4), 7);
-  graphics_fill_circle(ctx, GPoint(cx + 6, cy - 4), 7);
-  GPoint tri[3] = { { cx - 12, cy - 1 }, { cx + 12, cy - 1 }, { cx, cy + 13 } };
+  graphics_fill_circle(ctx, GPoint(cx - 7, cy - 5), 8);
+  graphics_fill_circle(ctx, GPoint(cx + 7, cy - 5), 8);
+  GPoint tri[3] = { { cx - 14, cy - 1 }, { cx + 14, cy - 1 }, { cx, cy + 16 } };
   GPathInfo info = { .num_points = 3, .points = tri };
   GPath *p = gpath_create(&info);
   gpath_draw_filled(ctx, p);
@@ -148,8 +153,8 @@ static void icon_heart(GContext *ctx, int cx, int cy, GColor col) {
 static void icon_shoe(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
   GPoint shoe[8] = {
-    { cx - 14, cy - 2 }, { cx - 11, cy - 8 }, { cx - 3, cy - 8 }, { cx + 1, cy - 3 },
-    { cx + 8, cy - 1 },  { cx + 15, cy + 3 }, { cx + 15, cy + 7 }, { cx - 14, cy + 7 },
+    { cx - 17, cy - 3 }, { cx - 13, cy - 10 }, { cx - 3, cy - 10 }, { cx + 1, cy - 4 },
+    { cx + 9, cy - 1 },  { cx + 18, cy + 4 },  { cx + 18, cy + 8 }, { cx - 17, cy + 8 },
   };
   GPathInfo info = { .num_points = 8, .points = shoe };
   GPath *p = gpath_create(&info);
@@ -159,12 +164,12 @@ static void icon_shoe(GContext *ctx, int cx, int cy, GColor col) {
 
 // A vertical battery, filled from the bottom by pct.
 static void icon_battery(GContext *ctx, int cx, int cy, GColor col, int pct, bool chg) {
-  int w = 17, h = 27;
+  int w = 20, h = 32;
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;
   GRect body = GRect(cx - w / 2, cy - h / 2, w, h);
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_rect(ctx, GRect(cx - 4, body.origin.y - 4, 8, 5), 1, GCornersTop);  // nub
+  graphics_fill_rect(ctx, GRect(cx - 5, body.origin.y - 4, 10, 5), 1, GCornersTop);  // nub
   graphics_context_set_stroke_color(ctx, col);
   graphics_context_set_stroke_width(ctx, 3);
   graphics_draw_rect(ctx, body);
@@ -176,27 +181,27 @@ static void icon_battery(GContext *ctx, int cx, int cy, GColor col, int pct, boo
 }
 
 static void icon_calendar(GContext *ctx, int cx, int cy, GColor col, int mday) {
-  GRect body = GRect(cx - 14, cy - 10, 28, 26);
+  GRect body = GRect(cx - 16, cy - 11, 32, 30);
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_rect(ctx, GRect(cx - 9, cy - 14, 4, 6), 1, GCornersAll);   // binder tabs
-  graphics_fill_rect(ctx, GRect(cx + 5, cy - 14, 4, 6), 1, GCornersAll);
+  graphics_fill_rect(ctx, GRect(cx - 10, cy - 16, 4, 7), 1, GCornersAll);   // binder tabs
+  graphics_fill_rect(ctx, GRect(cx + 6,  cy - 16, 4, 7), 1, GCornersAll);
   graphics_context_set_stroke_color(ctx, col);
   graphics_context_set_stroke_width(ctx, 3);
-  graphics_draw_round_rect(ctx, body, 3);
-  graphics_fill_rect(ctx, GRect(body.origin.x, body.origin.y, body.size.w, 6), 0, GCornerNone);
+  graphics_draw_round_rect(ctx, body, 4);
+  graphics_fill_rect(ctx, GRect(body.origin.x, body.origin.y, body.size.w, 7), 0, GCornerNone);
   char d[3];
   snprintf(d, sizeof(d), "%d", mday);
   graphics_context_set_text_color(ctx, col);
-  graphics_draw_text(ctx, d, s_f_small, GRect(body.origin.x, body.origin.y + 5, body.size.w, 20),
+  graphics_draw_text(ctx, d, s_f_small, GRect(body.origin.x, body.origin.y + 7, body.size.w, 22),
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
 static void wx_cloud(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_circle(ctx, GPoint(cx - 8, cy + 2), 6);
-  graphics_fill_circle(ctx, GPoint(cx + 8, cy + 2), 6);
-  graphics_fill_circle(ctx, GPoint(cx,     cy - 3), 8);
-  graphics_fill_rect(ctx, GRect(cx - 14, cy + 2, 28, 7), 0, GCornerNone);
+  graphics_fill_circle(ctx, GPoint(cx - 9, cy + 3), 7);
+  graphics_fill_circle(ctx, GPoint(cx + 9, cy + 3), 7);
+  graphics_fill_circle(ctx, GPoint(cx,     cy - 4), 10);
+  graphics_fill_rect(ctx, GRect(cx - 16, cy + 3, 32, 8), 0, GCornerNone);
 }
 
 static void wx_sun(GContext *ctx, int cx, int cy, GColor col, int r) {
@@ -207,8 +212,8 @@ static void wx_sun(GContext *ctx, int cx, int cy, GColor col, int r) {
   for (int i = 0; i < 8; i++) {
     int32_t a = TRIG_MAX_ANGLE * i / 8;
     int s = sin_lookup(a), c = cos_lookup(a);
-    GPoint p1 = { cx + (r + 2) * s / TRIG_MAX_RATIO, cy - (r + 2) * c / TRIG_MAX_RATIO };
-    GPoint p2 = { cx + (r + 6) * s / TRIG_MAX_RATIO, cy - (r + 6) * c / TRIG_MAX_RATIO };
+    GPoint p1 = { cx + (r + 3) * s / TRIG_MAX_RATIO, cy - (r + 3) * c / TRIG_MAX_RATIO };
+    GPoint p2 = { cx + (r + 8) * s / TRIG_MAX_RATIO, cy - (r + 8) * c / TRIG_MAX_RATIO };
     graphics_draw_line(ctx, p1, p2);
   }
 }
@@ -216,32 +221,32 @@ static void wx_sun(GContext *ctx, int cx, int cy, GColor col, int r) {
 static void icon_weather(GContext *ctx, int cx, int cy, GColor col, int code, bool ok) {
   if (!ok) { wx_cloud(ctx, cx, cy, col); return; }
   switch (wx_category(code)) {
-    case WX_CLEAR:  wx_sun(ctx, cx, cy, col, 9); break;
-    case WX_PARTLY: wx_sun(ctx, cx - 7, cy - 7, col, 5); wx_cloud(ctx, cx + 3, cy + 3, col); break;
+    case WX_CLEAR:  wx_sun(ctx, cx, cy, col, 10); break;
+    case WX_PARTLY: wx_sun(ctx, cx - 8, cy - 8, col, 6); wx_cloud(ctx, cx + 4, cy + 4, col); break;
     case WX_CLOUD:  wx_cloud(ctx, cx, cy, col); break;
     case WX_FOG:
       graphics_context_set_stroke_color(ctx, col);
       graphics_context_set_stroke_width(ctx, 3);
       for (int i = 0; i < 4; i++)
-        graphics_draw_line(ctx, GPoint(cx - 13, cy - 8 + i * 5), GPoint(cx + 13, cy - 8 + i * 5));
+        graphics_draw_line(ctx, GPoint(cx - 15, cy - 9 + i * 6), GPoint(cx + 15, cy - 9 + i * 6));
       break;
     case WX_RAIN:
-      wx_cloud(ctx, cx, cy - 3, col);
+      wx_cloud(ctx, cx, cy - 4, col);
       graphics_context_set_stroke_color(ctx, col);
       graphics_context_set_stroke_width(ctx, 3);
       for (int i = 0; i < 3; i++)
-        graphics_draw_line(ctx, GPoint(cx - 8 + i * 8, cy + 9), GPoint(cx - 8 + i * 8, cy + 16));
+        graphics_draw_line(ctx, GPoint(cx - 10 + i * 10, cy + 11), GPoint(cx - 10 + i * 10, cy + 19));
       break;
     case WX_SNOW:
-      wx_cloud(ctx, cx, cy - 3, col);
+      wx_cloud(ctx, cx, cy - 4, col);
       graphics_context_set_fill_color(ctx, col);
       for (int i = 0; i < 3; i++)
-        graphics_fill_circle(ctx, GPoint(cx - 8 + i * 8, cy + 13), 2);
+        graphics_fill_circle(ctx, GPoint(cx - 10 + i * 10, cy + 15), 3);
       break;
     case WX_STORM: {
-      wx_cloud(ctx, cx, cy - 3, col);
+      wx_cloud(ctx, cx, cy - 4, col);
       graphics_context_set_fill_color(ctx, col);
-      GPoint bolt[4] = { { cx + 2, cy + 6 }, { cx - 5, cy + 15 }, { cx + 1, cy + 15 }, { cx - 3, cy + 23 } };
+      GPoint bolt[4] = { { cx + 3, cy + 7 }, { cx - 6, cy + 18 }, { cx + 1, cy + 18 }, { cx - 4, cy + 27 } };
       GPathInfo info = { .num_points = 4, .points = bolt };
       GPath *p = gpath_create(&info);
       gpath_draw_filled(ctx, p);
@@ -251,12 +256,12 @@ static void icon_weather(GContext *ctx, int cx, int cy, GColor col, int code, bo
   }
 }
 
-// One top complication: an icon (centred on icon_cy) with a bold label tucked
-// just beneath it.
+// One top complication: a big icon (centred on icon_cy) with a big bold label
+// tucked just beneath it.
 static void draw_comp(GContext *ctx, int type, int cx, int cell_w, GColor fg) {
   if (type == C_NONE) return;
-  const int icon_cy = 40;
-  const int label_y = 56;
+  const int icon_cy = 42;
+  const int label_y = 62;
   char label[12];
   GColor lcol = fg;
 
@@ -301,7 +306,7 @@ static void draw_comp(GContext *ctx, int type, int cx, int cell_w, GColor fg) {
   }
 
   graphics_context_set_text_color(ctx, lcol);
-  graphics_draw_text(ctx, label, s_f_label, GRect(cx - cell_w / 2, label_y, cell_w, 28),
+  graphics_draw_text(ctx, label, s_f_label, GRect(cx - cell_w / 2, label_y, cell_w, 32),
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
@@ -311,27 +316,35 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
 
   GColor top_bg  = palette(s_top);
   GColor band_bg = palette(s_band);
+  GColor bot_bg  = palette(s_bot);
   GColor top_fg  = content_on(top_bg);
   GColor band_fg = content_on(band_bg);
 
-  int split = h * 44 / 100;   // top block ~44%, time band the rest
+  int band_y = h * 44 / 100;   // top block ~44%
+  int band_h = h * 36 / 100;   // time band ~36%
+  int bot_y  = band_y + band_h;
 
   // Top block: solid colour + three complications.
   graphics_context_set_fill_color(ctx, top_bg);
-  graphics_fill_rect(ctx, GRect(0, 0, w, split), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(0, 0, w, band_y), 0, GCornerNone);
   int cw = w / 3;
   for (int i = 0; i < 3; i++) {
     draw_comp(ctx, s_slot[i], cw / 2 + i * cw, cw, top_fg);
   }
 
-  // Time band: solid colour filling the rest.
+  // Middle time band.
   graphics_context_set_fill_color(ctx, band_bg);
-  graphics_fill_rect(ctx, GRect(0, split, w, h - split), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(0, band_y, w, band_h), 0, GCornerNone);
 
-  // Separator between the two blocks.
+  // Bottom block: an empty colour strip.
+  graphics_context_set_fill_color(ctx, bot_bg);
+  graphics_fill_rect(ctx, GRect(0, bot_y, w, h - bot_y), 0, GCornerNone);
+
+  // Separators bounding the time band.
   if (s_sep >= 0) {
     graphics_context_set_fill_color(ctx, palette(s_sep));
-    graphics_fill_rect(ctx, GRect(0, split - 2, w, 4), 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(0, band_y - 2, w, 4), 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(0, bot_y - 2,  w, 4), 0, GCornerNone);
   }
 
   // The time, vertically centred in the band by its measured height.
@@ -345,9 +358,9 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
     snprintf(tbuf, sizeof(tbuf), "%d:%02d", h12, t->tm_min);
   }
   GFont tf = time_font();
-  GRect band = GRect(0, split, w, h - split);
+  GRect band = GRect(0, band_y, w, band_h);
   GSize sz = graphics_text_layout_get_content_size(tbuf, tf, band, GTextOverflowModeFill, GTextAlignmentCenter);
-  int ty = split + (h - split - sz.h) / 2;
+  int ty = band_y + (band_h - sz.h) / 2;
   graphics_context_set_text_color(ctx, band_fg);
   graphics_draw_text(ctx, tbuf, tf, GRect(0, ty, w, sz.h + 8),
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
@@ -365,6 +378,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((tp = dict_find(iter, MESSAGE_KEY_SLOT3)))     { s_slot[2] = tuple_int(tp); persist_write_int(PKEY_SLOT3, s_slot[2]); }
   if ((tp = dict_find(iter, MESSAGE_KEY_TOPCOLOR)))  { s_top  = tuple_int(tp); persist_write_int(PKEY_TOPCOLOR, s_top); }
   if ((tp = dict_find(iter, MESSAGE_KEY_BANDCOLOR))) { s_band = tuple_int(tp); persist_write_int(PKEY_BANDCOLOR, s_band); }
+  if ((tp = dict_find(iter, MESSAGE_KEY_BOTCOLOR)))  { s_bot  = tuple_int(tp); persist_write_int(PKEY_BOTCOLOR, s_bot); }
   if ((tp = dict_find(iter, MESSAGE_KEY_TIMEFONT)))  { s_font = tuple_int(tp); persist_write_int(PKEY_TIMEFONT, s_font); }
   if ((tp = dict_find(iter, MESSAGE_KEY_SEPCOLOR)))  { s_sep  = tuple_int(tp); persist_write_int(PKEY_SEPCOLOR, s_sep); }
   if ((tp = dict_find(iter, MESSAGE_KEY_WX_OK)))     { s_wx_ok   = tp->value->int32; persist_write_bool(PKEY_WX_OK, s_wx_ok); }
@@ -379,6 +393,7 @@ static void load_settings(void) {
   if (persist_exists(PKEY_SLOT3))     s_slot[2] = persist_read_int(PKEY_SLOT3);
   if (persist_exists(PKEY_TOPCOLOR))  s_top     = persist_read_int(PKEY_TOPCOLOR);
   if (persist_exists(PKEY_BANDCOLOR)) s_band    = persist_read_int(PKEY_BANDCOLOR);
+  if (persist_exists(PKEY_BOTCOLOR))  s_bot     = persist_read_int(PKEY_BOTCOLOR);
   if (persist_exists(PKEY_TIMEFONT))  s_font    = persist_read_int(PKEY_TIMEFONT);
   if (persist_exists(PKEY_SEPCOLOR))  s_sep     = persist_read_int(PKEY_SEPCOLOR);
   if (persist_exists(PKEY_WX_TEMP))   s_wx_temp = persist_read_int(PKEY_WX_TEMP);
@@ -401,7 +416,7 @@ static void window_unload(Window *window) {
 }
 
 static void init(void) {
-  s_f_label = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
+  s_f_label = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
   s_f_small = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
 
   load_settings();
