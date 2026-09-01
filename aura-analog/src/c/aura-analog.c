@@ -61,6 +61,11 @@ static GPath *s_hour_path, *s_min_path;
 static GPathInfo s_hour_info, s_min_info;
 static GPoint s_hour_pts[4], s_min_pts[4];
 
+// Fonts (Liberation Sans, Helvetica-like; Weather Icons for the condition glyph).
+static GFont s_font_data;    // bold 18 — temperature / steps / heart
+static GFont s_font_label;   // bold 14 — wordmark + day
+static GFont s_font_wx;      // Weather Icons 25 — condition glyph
+
 // ---- helpers ---------------------------------------------------------------
 
 static void build_baton(GPoint *p, int hw, int len, int tail) {
@@ -100,60 +105,30 @@ static int current_hr(void) {
   return -1;
 }
 
-typedef enum { WX_CLEAR, WX_PARTLY, WX_CLOUD, WX_RAIN, WX_SNOW, WX_STORM } WxKind;
-
-static WxKind wx_kind(int code) {
-  if (code <= 1) return WX_CLEAR;
-  if (code == 2) return WX_PARTLY;
-  if (code == 3 || code == 45 || code == 48) return WX_CLOUD;
-  if (code >= 95) return WX_STORM;
-  if ((code >= 71 && code <= 77) || code == 85 || code == 86) return WX_SNOW;
-  return WX_RAIN;
+// The condition glyph is a Weather Icons codepoint (Private Use Area), rendered
+// with the bundled Weather Icons font — proper vector weather symbols rather than
+// hand-drawn shapes. WMO codes collapse into a handful of buckets.
+static const char *wx_glyph(int code) {
+  if (code <= 1)                                  return "\xEF\x80\x8D";  // f00d clear/sunny
+  if (code == 2)                                  return "\xEF\x80\x82";  // f002 partly cloudy
+  if (code == 45 || code == 48)                   return "\xEF\x80\x94";  // f014 fog
+  if (code == 3)                                  return "\xEF\x80\x93";  // f013 cloudy
+  if (code >= 95)                                 return "\xEF\x80\x9E";  // f01e thunderstorm
+  if ((code >= 71 && code <= 77) ||
+      code == 85 || code == 86)                   return "\xEF\x80\x9B";  // f01b snow
+  return "\xEF\x80\x99";                                                  // f019 rain
 }
 
-// A tiny condition glyph centred on `c`.
-static void draw_wx_icon(GContext *ctx, GPoint c, WxKind k, GColor fg) {
-  graphics_context_set_stroke_color(ctx, fg);
-  graphics_context_set_fill_color(ctx, fg);
-  graphics_context_set_stroke_width(ctx, 1);
-  switch (k) {
-    case WX_CLEAR:
-      graphics_fill_circle(ctx, c, 5);
-      break;
-    case WX_PARTLY:
-      graphics_draw_circle(ctx, GPoint(c.x - 3, c.y - 2), 4);
-      graphics_fill_circle(ctx, GPoint(c.x + 3, c.y + 1), 4);
-      break;
-    case WX_CLOUD:
-      graphics_fill_circle(ctx, GPoint(c.x - 3, c.y), 4);
-      graphics_fill_circle(ctx, GPoint(c.x + 3, c.y), 4);
-      graphics_fill_rect(ctx, GRect(c.x - 5, c.y, 11, 4), 0, GCornerNone);
-      break;
-    case WX_RAIN:
-      graphics_fill_circle(ctx, GPoint(c.x - 3, c.y - 2), 4);
-      graphics_fill_circle(ctx, GPoint(c.x + 3, c.y - 2), 4);
-      graphics_draw_line(ctx, GPoint(c.x - 3, c.y + 3), GPoint(c.x - 4, c.y + 6));
-      graphics_draw_line(ctx, GPoint(c.x + 2, c.y + 3), GPoint(c.x + 1, c.y + 6));
-      break;
-    case WX_SNOW:
-      graphics_draw_line(ctx, GPoint(c.x - 4, c.y), GPoint(c.x + 4, c.y));
-      graphics_draw_line(ctx, GPoint(c.x, c.y - 4), GPoint(c.x, c.y + 4));
-      graphics_draw_line(ctx, GPoint(c.x - 3, c.y - 3), GPoint(c.x + 3, c.y + 3));
-      graphics_draw_line(ctx, GPoint(c.x - 3, c.y + 3), GPoint(c.x + 3, c.y - 3));
-      break;
-    case WX_STORM:
-      graphics_draw_line(ctx, GPoint(c.x + 2, c.y - 5), GPoint(c.x - 3, c.y + 1));
-      graphics_draw_line(ctx, GPoint(c.x - 3, c.y + 1), GPoint(c.x + 1, c.y + 1));
-      graphics_draw_line(ctx, GPoint(c.x + 1, c.y + 1), GPoint(c.x - 2, c.y + 6));
-      break;
-  }
-}
-
-static void draw_text_centered(GContext *ctx, const char *s, const char *font_key,
-                               GRect box, GColor col) {
+// Draw `s` in `font`, optically centred on point `c`. Content size drives the box
+// so custom fonts of any size land centred; the small vertical nudge absorbs the
+// font's built-in top leading.
+static void draw_centered(GContext *ctx, const char *s, GFont font, GPoint c, GColor col) {
+  GSize sz = graphics_text_layout_get_content_size(
+      s, font, GRect(0, 0, 160, 60), GTextOverflowModeWordWrap, GTextAlignmentCenter);
   graphics_context_set_text_color(ctx, col);
-  graphics_draw_text(ctx, s, fonts_get_system_font(font_key), box,
-                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+  graphics_draw_text(ctx, s, font,
+      GRect(c.x - sz.w / 2, c.y - sz.h / 2 - 2, sz.w, sz.h + 4),
+      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 }
 
 // ---- rendering -------------------------------------------------------------
@@ -165,52 +140,42 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
 
   GColor bg  = s_theme_dark ? GColorBlack : GColorWhite;
   GColor fg  = s_theme_dark ? GColorWhite : GColorBlack;
-  GColor dim = s_theme_dark ? GColorLightGray : GColorDarkGray;
 
   graphics_context_set_fill_color(ctx, bg);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
-  // Ticks: bold bars at the hours, thin strokes at the minutes.
+  // Minute track: long bold bars at the hours, thin strokes at the minutes —
+  // the Mondaine railway dial (no numerals).
   for (int i = 0; i < 60; i++) {
     bool is_hour = (i % 5 == 0);
     float deg = 360.0f * i / 60.0f;
     graphics_context_set_stroke_color(ctx, fg);
-    graphics_context_set_stroke_width(ctx, is_hour ? 4 : 1);
-    graphics_draw_line(ctx, point_at(center, deg, R - (is_hour ? 12 : 6)),
+    graphics_context_set_stroke_width(ctx, is_hour ? 5 : 1);
+    graphics_draw_line(ctx, point_at(center, deg, R - (is_hour ? 17 : 6)),
                             point_at(center, deg, R));
   }
 
-  int sr = R * 24 / 100;                          // subdial radius
-  int f  = R * 46 / 100;                          // subdial centre distance
-  GPoint pL = point_at(center, 270, f);           // left  — weather
-  GPoint pR = point_at(center, 90, f);            // right — day
-  GPoint pB = point_at(center, 180, f);           // bottom — steps/heart
+  int f = R * 47 / 100;                            // subdial centre distance
+  GPoint pL = point_at(center, 270, f);            // left  — weather
+  GPoint pR = point_at(center, 90, f);             // right — day
+  GPoint pB = point_at(center, 180, f);            // bottom — steps/heart
 
-  // AURA wordmark, upper dial.
+  // AURA wordmark, upper dial (no logo — original wordmark).
   if (s_wordmark) {
-    GPoint pW = point_at(center, 0, f);
-    draw_text_centered(ctx, "AURA", FONT_KEY_GOTHIC_14,
-                       GRect(pW.x - 30, pW.y - 10, 60, 18), fg);
+    draw_centered(ctx, "AURA", s_font_label, point_at(center, 0, R * 42 / 100), fg);
   }
 
-  // Subdial rings.
-  graphics_context_set_stroke_color(ctx, dim);
-  graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_circle(ctx, pL, sr);
-  graphics_draw_circle(ctx, pR, sr);
-  graphics_draw_circle(ctx, pB, sr);
-
-  // LEFT — weather.
+  // Subdials — contents only, no ring outline.
+  // LEFT — weather: condition glyph over temperature.
   {
     char tbuf[8];
     if (s_wx_ok) {
-      draw_wx_icon(ctx, GPoint(pL.x, pL.y - 7), wx_kind(s_wx_code), fg);
+      draw_centered(ctx, wx_glyph(s_wx_code), s_font_wx, GPoint(pL.x, pL.y - 8), fg);
       snprintf(tbuf, sizeof(tbuf), "%d\xC2\xB0", s_wx_temp);
     } else {
       snprintf(tbuf, sizeof(tbuf), "--\xC2\xB0");
     }
-    draw_text_centered(ctx, tbuf, FONT_KEY_GOTHIC_18_BOLD,
-                       GRect(pL.x - sr, pL.y + 2, sr * 2, 20), fg);
+    draw_centered(ctx, tbuf, s_font_data, GPoint(pL.x, pL.y + 10), fg);
   }
 
   // RIGHT — day, "WWW DD".
@@ -219,9 +184,8 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
     char d[12];
     strftime(d, sizeof(d), "%a %d", localtime(&now));
     for (int i = 0; i < 3 && d[i]; i++)
-      if (d[i] >= 'a' && d[i] <= 'z') d[i] -= 32;   // MON 01
-    draw_text_centered(ctx, d, FONT_KEY_GOTHIC_14,
-                       GRect(pR.x - sr, pR.y - 9, sr * 2, 20), fg);
+      if (d[i] >= 'a' && d[i] <= 'z') d[i] -= 32;    // MON 01
+    draw_centered(ctx, d, s_font_label, pR, fg);
   }
 
   // BOTTOM — steps or heart rate.
@@ -230,8 +194,7 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
     int v = s_bottom_heart ? current_hr() : today_steps();
     if (v < 0) snprintf(nbuf, sizeof(nbuf), "--");
     else       snprintf(nbuf, sizeof(nbuf), "%d", v);
-    draw_text_centered(ctx, nbuf, FONT_KEY_GOTHIC_18,
-                       GRect(pB.x - sr, pB.y - 10, sr * 2, 20), fg);
+    draw_centered(ctx, nbuf, s_font_data, pB, fg);
   }
 
   // Hands (over the subdials, chronograph-style). Take seconds and milliseconds
@@ -269,19 +232,22 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
 
     float sec = s_disp_sec + ms / 1000.0f;
     float sdeg = (sec < SWEEP_SECONDS) ? 360.0f * (sec / SWEEP_SECONDS) : 0.0f;
+    // Mondaine second hand: a thin red stem with a counterweight tail, ending in
+    // the red signal disc (a lollipop) — the stem stops at the disc, no pin past it.
+    GPoint disc = point_at(center, sdeg, R * 73 / 100);
     graphics_context_set_stroke_color(ctx, GColorRed);
     graphics_context_set_stroke_width(ctx, 2);
-    graphics_draw_line(ctx, point_at(center, sdeg + 180.0f, R * 22 / 100),
-                            point_at(center, sdeg, R * 90 / 100));
+    graphics_draw_line(ctx, point_at(center, sdeg + 180.0f, R * 18 / 100), disc);
     graphics_context_set_fill_color(ctx, GColorRed);
-    graphics_fill_circle(ctx, point_at(center, sdeg, R * 72 / 100), R * 10 / 100);
+    graphics_fill_circle(ctx, disc, R * 11 / 100);
   }
 
+  // Hub.
   graphics_context_set_fill_color(ctx, fg);
-  graphics_fill_circle(ctx, center, 4);
+  graphics_fill_circle(ctx, center, 5);
   if (s_seconds) {
     graphics_context_set_fill_color(ctx, GColorRed);
-    graphics_fill_circle(ctx, center, 2);
+    graphics_fill_circle(ctx, center, 3);
   }
 }
 
@@ -364,8 +330,8 @@ static void window_load(Window *window) {
   s_radius = (bounds.size.w < bounds.size.h ? bounds.size.w : bounds.size.h) / 2 - 6;
 
   int R = s_radius;
-  build_baton(s_hour_pts, 5, R * 50 / 100, R * 12 / 100);
-  build_baton(s_min_pts, 4, R * 85 / 100, R * 12 / 100);
+  build_baton(s_hour_pts, 6, R * 55 / 100, R * 16 / 100);
+  build_baton(s_min_pts, 5, R * 90 / 100, R * 16 / 100);
   s_hour_info = (GPathInfo){ .num_points = 4, .points = s_hour_pts };
   s_min_info  = (GPathInfo){ .num_points = 4, .points = s_min_pts };
   s_hour_path = gpath_create(&s_hour_info);
@@ -373,12 +339,19 @@ static void window_load(Window *window) {
   gpath_move_to(s_hour_path, s_center);
   gpath_move_to(s_min_path, s_center);
 
+  s_font_data  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_18));
+  s_font_label = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_14));
+  s_font_wx    = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_WI_25));
+
   s_face_layer = layer_create(bounds);
   layer_set_update_proc(s_face_layer, face_update_proc);
   layer_add_child(root, s_face_layer);
 }
 
 static void window_unload(Window *window) {
+  fonts_unload_custom_font(s_font_data);
+  fonts_unload_custom_font(s_font_label);
+  fonts_unload_custom_font(s_font_wx);
   gpath_destroy(s_hour_path);
   gpath_destroy(s_min_path);
   layer_destroy(s_face_layer);

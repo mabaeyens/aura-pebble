@@ -55,8 +55,9 @@ shows steps or heart rate, and set weather units.
 Weather comes from [Open-Meteo](https://open-meteo.com) — no API key, so it stays free for
 anyone. The phone (PebbleKit JS) fetches the current temperature and condition for your GPS
 location, or a latitude/longitude you enter manually, and pushes them to the watch, refreshing
-every 30 minutes. The face works fine offline — the weather subdial just reads `--°` until a
-reading arrives.
+every 30 minutes. The condition shows as a proper weather symbol (from the
+[Weather Icons](https://github.com/erikflowers/weather-icons) font), mapped from the WMO code.
+The face works fine offline — the weather subdial just reads `--°` until a reading arrives.
 
 ## Docs
 
@@ -69,6 +70,16 @@ The analog face is a homage to the Mondaine "Official Swiss Railways" clock and 
 second hand. The Mondaine name and that dial design are protected trademarks / registered
 designs of Mondaine Watch Ltd; this is an independent, non-commercial reimplementation for
 PebbleOS, not affiliated with or endorsed by Mondaine or SBB. All code here is original.
+
+## Fonts
+
+The analog dial is set in **Liberation Sans** (Helvetica-metric-compatible), and weather
+conditions use the **Weather Icons** symbol font. Both are licensed under the SIL Open Font
+License 1.1 and bundled, subset to the glyphs actually used, under
+[`aura-analog/resources/fonts/`](aura-analog/resources/fonts) with their licenses.
+
+- Liberation Sans © Red Hat, Inc. — SIL OFL 1.1.
+- Weather Icons © Erik Flowers — SIL OFL 1.1.
 
 ## Built with
 

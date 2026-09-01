@@ -2,7 +2,9 @@
   "name": "aura-analog",
   "author": "Miguel Angel Baeyens",
   "version": "1.1.0",
-  "keywords": ["pebble-app"],
+  "keywords": [
+    "pebble-app"
+  ],
   "private": true,
   "dependencies": {
     "pebble-clay": "^1.0.4"
@@ -12,7 +14,11 @@
     "uuid": "3136bd30-19cd-416a-9a53-7ccf0945553d",
     "sdkVersion": "3",
     "enableMultiJS": true,
-    "capabilities": ["configurable", "location", "health"],
+    "capabilities": [
+      "configurable",
+      "location",
+      "health"
+    ],
     "targetPlatforms": [
       "aplite",
       "basalt",
@@ -37,7 +43,26 @@
       "WX_OK"
     ],
     "resources": {
-      "media": []
+      "media": [
+        {
+          "type": "font",
+          "name": "FONT_AURA_18",
+          "file": "fonts/LiberationSans-Bold.ttf",
+          "characterRegex": "[-0-9A-Z°, ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_14",
+          "file": "fonts/LiberationSans-Bold.ttf",
+          "characterRegex": "[0-9A-Z ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_WI_25",
+          "file": "fonts/WeatherIcons-Regular.ttf",
+          "characterRegex": "[]"
+        }
+      ]
     }
   }
 }
