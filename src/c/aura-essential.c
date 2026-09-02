@@ -69,7 +69,7 @@ extern uint32_t MESSAGE_KEY_WX_OK;
 static Window *s_window;
 static Layer  *s_layer;
 
-static int  s_slot[3]  = { C_STEPS, C_HEART, C_BATTERY };  // default top row
+static int  s_slot[3]  = { C_DAY, C_STEPS, C_BATTERY };  // default top row (Essential + one)
 static int  s_top      = 0;   // top block colour index
 static int  s_band     = 7;   // time band colour index (white)
 static int  s_bot      = 0;   // bottom block colour index
@@ -81,8 +81,9 @@ static int  s_wx_temp  = 0;
 static int  s_wx_code  = 0;
 static bool s_wx_ok    = false;
 
-static GFont s_f_label;   // complication labels (big bold)
-static GFont s_f_small;   // day-of-month inside the calendar glyph
+static GFont s_f_num;     // numeric complication labels, LECO (segmented)
+static GFont s_f_date;    // larger LECO for the date inside the calendar
+static GFont s_f_day;     // weekday word, Gothic (LECO has no letters)
 static GBitmap *s_shoe_bmp;  // the Essential shoe icon, extracted bit-by-bit
 
 static GColor palette(int i) {
@@ -189,19 +190,23 @@ static void icon_battery(GContext *ctx, int cx, int cy, GColor col, int pct) {
                      0, GCornerNone);
 }
 
-static void icon_calendar(GContext *ctx, int cx, int cy, GColor col, int mday) {
-  GRect body = GRect(cx - 18, cy - 13, 36, 35);
+// The white calendar body only; the black outline comes from the draw_comp
+// halo, and the black binder tabs and day number are added by calendar_detail.
+static void icon_calendar(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_rect(ctx, GRect(cx - 11, cy - 18, 5, 8), 1, GCornersAll);   // binder tabs
-  graphics_fill_rect(ctx, GRect(cx + 6,  cy - 18, 5, 8), 1, GCornersAll);
-  graphics_context_set_stroke_color(ctx, col);
-  graphics_context_set_stroke_width(ctx, 3);
-  graphics_draw_round_rect(ctx, body, 4);
-  graphics_fill_rect(ctx, GRect(body.origin.x, body.origin.y, body.size.w, 8), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(cx - 18, cy - 11, 36, 33), 4, GCornersAll);   // rounded body
+}
+
+// Black detail over the white calendar body: two binder tabs sticking up and
+// the day-of-month in the segmented font, both black as on the original.
+static void calendar_detail(GContext *ctx, int cx, int cy, int mday) {
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, GRect(cx - 11, cy - 20, 5, 12), 2, GCornersTop);   // binder tabs
+  graphics_fill_rect(ctx, GRect(cx + 6,  cy - 20, 5, 12), 2, GCornersTop);
   char d[3];
   snprintf(d, sizeof(d), "%d", mday);
-  graphics_context_set_text_color(ctx, col);
-  graphics_draw_text(ctx, d, s_f_small, GRect(body.origin.x, body.origin.y + 9, body.size.w, 24),
+  graphics_context_set_text_color(ctx, GColorBlack);
+  graphics_draw_text(ctx, d, s_f_date, GRect(cx - 18, cy - 3, 36, 28),
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
@@ -276,12 +281,7 @@ static void render_icon(GContext *ctx, int type, int cx, int dx, int dy, GColor 
       icon_battery(ctx, icx, icy, col, b.charge_percent);
       break;
     }
-    case C_DAY: {
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      icon_calendar(ctx, icx, icy, col, t->tm_mday);
-      break;
-    }
+    case C_DAY: icon_calendar(ctx, icx, icy, col); break;
     case C_WEATHER: icon_weather(ctx, icx, icy, col, s_wx_code, s_wx_ok); break;
     default: break;
   }
@@ -290,24 +290,22 @@ static void render_icon(GContext *ctx, int type, int cx, int dx, int dy, GColor 
 // Draw one complication's LABEL, centred under the icon. Flat, no outline, like
 // the original Essential where the labels are plain white text.
 static void render_label(GContext *ctx, int type, int cx, int cell_w, GColor col) {
-  char label[12];
+  char label[12] = "";
+  GFont f = s_f_num;   // LECO segmented digits for everything numeric
   switch (type) {
     case C_STEPS: {
       int s = today_steps();
-      if (s < 0)           snprintf(label, sizeof(label), "--");
-      else if (s >= 10000) snprintf(label, sizeof(label), "%dk", s / 1000);
-      else                 snprintf(label, sizeof(label), "%d", s);
+      if (s >= 0) snprintf(label, sizeof(label), "%d", s);   // LECO has no 'K'
       break;
     }
     case C_HEART: {
       int hr = current_hr();
-      if (hr < 0) snprintf(label, sizeof(label), "--");
-      else        snprintf(label, sizeof(label), "%d", hr);
+      if (hr > 0) snprintf(label, sizeof(label), "%d", hr);
       break;
     }
     case C_BATTERY: {
       BatteryChargeState b = battery_state_service_peek();
-      snprintf(label, sizeof(label), "%d%%", b.charge_percent);
+      snprintf(label, sizeof(label), "%d", b.charge_percent);   // LECO has no '%'
       break;
     }
     case C_DAY: {
@@ -315,17 +313,18 @@ static void render_label(GContext *ctx, int type, int cx, int cell_w, GColor col
       struct tm *t = localtime(&now);
       strftime(label, sizeof(label), "%a", t);
       upcase(label);
+      f = s_f_day;   // weekday word: letters, so Gothic (LECO is numbers-only)
       break;
     }
     case C_WEATHER: {
-      if (s_wx_ok) snprintf(label, sizeof(label), "%d\xC2\xB0", s_wx_temp);
-      else         snprintf(label, sizeof(label), "--");
+      if (s_wx_ok) snprintf(label, sizeof(label), "%d", s_wx_temp);   // LECO has no degree
       break;
     }
     default: return;
   }
+  if (!label[0]) return;   // nothing to show (e.g. no health/weather data)
   graphics_context_set_text_color(ctx, col);
-  graphics_draw_text(ctx, label, s_f_label, GRect(cx - cell_w / 2, LABEL_Y, cell_w, 32),
+  graphics_draw_text(ctx, label, f, GRect(cx - cell_w / 2, LABEL_Y, cell_w, 32),
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
@@ -350,6 +349,11 @@ static void draw_comp(GContext *ctx, int type, int cx, int cell_w) {
       }
     }
     render_icon(ctx, type, cx, 0, 0, palette(s_comp));  // fill on top of the outline
+    if (type == C_DAY) {
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      calendar_detail(ctx, cx, ICON_CY, t->tm_mday);    // black tabs + day number
+    }
   }
   render_label(ctx, type, cx, cell_w, palette(s_comp)); // flat label, no outline
 }
@@ -464,8 +468,9 @@ static void window_unload(Window *window) {
 }
 
 static void init(void) {
-  s_f_label = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
-  s_f_small = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+  s_f_num  = fonts_get_system_font(FONT_KEY_LECO_20_BOLD_NUMBERS);
+  s_f_date = fonts_get_system_font(FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM);
+  s_f_day  = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
   s_shoe_bmp = gbitmap_create_with_resource(RESOURCE_ID_IMG_SHOE);
 
   load_settings();
