@@ -27,10 +27,13 @@
 
 ## Pending
 
+- Decide the dashboard app-icon glow position. The committed brand icon (and the downscaled `app-icon-80/144.png`) has the warm glow in the **top-left** corner; I flagged that the request mentioned the **top-right**. Moving it needs compositing, not just a downscale. No change made yet, awaiting a decision.
 - Publish aura-analog and aura-digital when each has a proper production build and its own store screenshots. Analog is bumped to 1.3.0 in source but has no GitHub release yet; digital has neither. Neither is close to release. Essential is the current focus.
 
 ## Notes
 
+- Dashboard/appstore listing icon = the **real Aura brand icon** downscaled, not a Pebble-specific redraw. Master at `docs/store/aura-brand-icon.png` (1024px, also served at askmira.es/aura/assets/icon.png); `scripts/make-app-icons.sh` Lanczos-downscales it to `app-icon-80.png` (Small) and `app-icon-144.png` (Large). Only used on the developer dashboard, so it does not need to match the Pebble launcher's tinting rules like `menu-icon.png` does. Don't redraw it.
+- CloudPebble runs an older **pebble-tool (5.0.39)** than local (5.0.40), and the two disagree on message-key codegen: 5.0.40 emits `MESSAGE_KEY_*` as `extern uint32_t` globals defined in `message_keys.auto.c`; 5.0.39 emits `#define` macros with no globals. Always `#include "message_keys.auto.h"` in C (works with both); never hand-declare the keys `extern` (links locally, fails on CloudPebble with `undefined reference`). This is what broke the first CloudPebble build of essential.
 - Store screenshots are now generated **without patching the source**: build+install once, then drive each theme with `pebble send-app-message --emulator emery --app-uuid <uuid> --int <key>=<val> ...` using the runtime message-key IDs (SLOT1..3 = 10000..10002, TOPCOLOR/BANDCOLOR/BOTCOLOR = 10003..10005, SEPCOLOR 10007, COMPCOLOR 10008, TIMECOLOR 10009, WX_TEMP/WX_CODE/WX_OK = 10015..10017). Inject demo data with `emu-steps 8432`, `emu-battery --percent 100`, `emu-heart-rate 68`, and set the calendar day via `emu-set-time <unix>` (compute the epoch against Europe/Madrid so the clock reads 10:09 despite CET/CEST). Heart-rate gotcha: set the HR **before** the redraw-triggering `emu-set-time` (with a short sleep) or the bpm label renders empty. This leaves the tracked source completely untouched — no restore step.
 - After any store-shot run, `aura-essential/build/aura-essential.pbw` still holds the last demo *settings* in emulator persist, but the tracked source is clean; rebuild with `pebble build` for a shippable `.pbw`.
 - The emery emulator mutes saturated hues in its display simulation (canonical orange renders as coral). A real Time 2 shows it closer to the true `GColorOrange`. Not a bug.
