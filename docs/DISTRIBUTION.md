@@ -31,3 +31,19 @@ No formal human review gate is documented; a listing goes live once the assets a
 - [ ] Publish, then confirm the live listing renders and installs on the real watch.
 
 **Never publish without an explicit go-ahead.** It's outward-facing and hard to walk back.
+
+## CloudPebble and this monorepo
+
+CloudPebble ([cloudpebble.repebble.com](https://cloudpebble.repebble.com)) syncs a GitHub repo and builds the Pebble project at the **repository root**. This repo is a monorepo: each face lives in its own subdirectory (`aura-analog/`, `aura-digital/`, `aura-essential/`) and there is no project at the root, so a direct GitHub sync just builds the first subdir it finds (`aura-analog`, alphabetically) and ignores the rest. CloudPebble has no "build this subdirectory" setting; naming the CloudPebble project after a face does not select it.
+
+Two ways around it:
+
+- **Per-face deploy branch (keeps GitHub sync).** Point CloudPebble at a branch whose root *is* the face, generated with the helper:
+
+  ```bash
+  scripts/sync-cloudpebble.sh essential      # -> pushes branch cloudpebble-essential
+  ```
+
+  Then set the CloudPebble GitHub branch to `cloudpebble-<face>` and pull. Re-run the helper after committing changes to that face on `main`; it force-pushes the regenerated split (the branch is a mirror, not shared work, so the force push is expected). Commit the face's changes *first* — the split only captures committed content.
+
+- **Zip import (no GitHub).** Import `<face>-<version>-cloudpebble.zip` (built with `git archive HEAD:<face>`, so the project sits at the zip root). Builds the right face immediately; re-import to update.
