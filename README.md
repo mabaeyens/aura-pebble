@@ -14,7 +14,7 @@ Aura on the phone draws around 250 illustrated weather scenes over a live sky. A
 |------|------------|--------|
 | **aura-digital** | Minimalist digital face: step count, time, date and battery, with an accent colour that tracks the time of day (echoing Aura's sun-tracking sky). | Phase 1 |
 | **aura-analog** | A Swiss-railway chronograph with the **stop-to-go** second hand (it sweeps a full turn in about 58 s, pauses at 12 for about 2 s, then releases as the minute jumps): white or black dial, black or white baton hands, twelve identical bold hour markers, and a red lollipop second hand. Four subdials, at 12, 9, 3 and 6, each set to whatever you want: the AURA wordmark, live weather, the day (red on Sundays), the date, battery, steps, heart rate, or nothing ([Settings](#settings)). See [Design origin](#design-origin). | Phase 2 |
-| **aura-essential** | A digital face in three blocks after the classic "Essential" layout: a top block with three configurable complications (steps, heart rate, battery, day of the week or weather) drawn as white icons and numbers with a black outline, a large clock centred in a white band, and a colour strip below. Every block colour, the separator and the clock font are configurable ([Settings](#settings)). | Phase 1 |
+| **aura-essential** | A digital face in three blocks after the classic "Essential" layout: a top block with three configurable complications (steps, heart rate, battery, day of the week or weather) drawn as white icons with a black outline and flat segmented (LECO) numbers, a large clock centred in a white band, and a colour strip below. Every block colour, the separator and the clock font are configurable ([Settings](#settings)). | Phase 1 |
 
 Digital (Phase 1), then the analog face (Phase 2) on its light and black dials, on the Pebble Time 2 emulator:
 
@@ -49,6 +49,8 @@ Weather comes from [Open-Meteo](https://open-meteo.com), which needs no API key,
 ## Design origin
 
 The analog face is a homage to the Mondaine Grand Cushion Set Black, a cushion-cased chronograph on the classic Swiss-railway dial, and its *stop2go* second hand: white dial, black baton hands, twelve identical bold markers, the red lollipop second hand, and subregisters at 12, 9, 3 and 6. The Mondaine name and dial design are protected trademarks and registered designs of Mondaine Watch Ltd; this is an independent, non-commercial reimplementation for PebbleOS, not affiliated with or endorsed by Mondaine or SBB. All the code here is original.
+
+The Essential face is a homage to the original **Essential** watchface for Pebble: three blocks, white-icon complications with a black outline over a colour block, and a large segmented clock in a white band. The step-count shoe icon is reproduced from that face's own artwork; credit and thanks go to its original developer, named in the Pebble appstore listing. All the code here is original.
 
 ## Fonts
 
