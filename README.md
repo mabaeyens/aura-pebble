@@ -16,9 +16,9 @@ Aura on the phone draws around 250 illustrated weather scenes over a live sky. A
 | **aura-analog** | A Swiss-railway chronograph with the **stop-to-go** second hand (it sweeps a full turn in about 58 s, pauses at 12 for about 2 s, then releases as the minute jumps): white or black dial, black or white baton hands, twelve identical bold hour markers, and a red lollipop second hand. Four subdials, at 12, 9, 3 and 6, each set to whatever you want: the AURA wordmark, live weather, the day (red on Sundays), the date, battery, steps, heart rate, or nothing ([Settings](#settings)). See [Design origin](#design-origin). | Phase 2 |
 | **aura-essential** | A digital face in three blocks after the classic "Essential" layout: a top block with three configurable complications (steps, heart rate, battery, day of the week or weather) drawn as white icons with a black outline and flat segmented (LECO) numbers, a large clock centred in a white band, and a colour strip below. Every block colour, the separator and the clock font are configurable ([Settings](#settings)). | Phase 1 |
 
-Digital (Phase 1), then the analog face (Phase 2) on its light and black dials, on the Pebble Time 2 emulator:
+The Essential face on the Pebble Time 2 emulator, in three of its themes (every block colour and complication is configurable):
 
-![Aura digital face](docs/emery-preview.png) ![Aura analog, light dial](docs/analog-light.png) ![Aura analog, black dial](docs/analog-dark.png)
+![Essential, classic theme](docs/store/essential-classic.png) ![Essential, ocean theme](docs/store/essential-ocean.png) ![Essential, midnight theme](docs/store/essential-midnight.png)
 
 ## Build and run
 
