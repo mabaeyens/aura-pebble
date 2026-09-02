@@ -2,6 +2,7 @@
 
 ## Done
 
+- 2026-09-02 Released aura-essential 1.0.1 on GitHub (tag `essential-v1.0.1`): bumped `package.json` to 1.0.1, verified the manifest conforms to the watchface spec (`watchapp.watchface true`, `emery` in `targetPlatforms`, all five platforms bundled, `configurable`/`location`/`health` capabilities all used, Clay defaults match the C source), clean `pebble clean` + `pebble build`, and attached the fresh `.pbw`, a source zip and the five store screenshots. Rolls up the polish pass below.
 - 2026-09-02 Essential polish pass: sun rays/outline uniform 3px; overcast (WMO 3) now a plain cloud with no sun; clouds redrawn with a scalloped, rounded bottom (row of bump discs) instead of a flat bar; weekday moved from Gothic to the bundled **LECO 1976 Regular** so it matches the LECO numbers; battery resized to sit level with the other icons and to read its fill clearly; the top-block icon + label group vertically centred (measured 25px above / 25px below).
 - 2026-09-02 Regenerated all five store screenshots on the polished face, each calendar showing a distinct day + weekday (classic 9 Fri, ocean 18 Sun, midnight 11 Wed, forest 23 Mon, sunset 30 Thu) and a varied complication mix.
 - 2026-09-02 Credited LECO 1976 Regular (© Samuel Čarnoký / CarnokyType) and its free MyFonts Desktop + App license in the README Fonts section; confirmed the font is free for both the embedded `.pbw` and the store screenshots.
