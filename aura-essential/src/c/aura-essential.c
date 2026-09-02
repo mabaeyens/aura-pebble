@@ -157,8 +157,8 @@ static int wx_category(int code) {
 
 // ---- Complication icons (drawn in code, ~40px, so the face carries no PNGs) -
 
-#define ICON_CY 46   // vertical centre of the complication icon
-#define LABEL_Y 74   // top of the complication label
+#define ICON_CY 48   // vertical centre of the complication icon
+#define LABEL_Y 78   // top of the complication label
 
 static void icon_heart(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
@@ -177,19 +177,17 @@ static void icon_heart(GContext *ctx, int cx, int cy, GColor col) {
 // afterwards by shoe_detail() in black, on top of the white fill.
 static void icon_shoe(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
-  GPoint shoe[10] = {
-    { cx - 20, cy + 6 },   // heel, bottom
-    { cx - 19, cy - 1 },   // heel, back
-    { cx - 14, cy - 7 },   // collar, back
-    { cx - 8,  cy - 8 },   // collar, front
-    { cx - 6,  cy - 4 },   // tongue dip
-    { cx - 1,  cy - 6 },   // instep
-    { cx + 8,  cy - 2 },   // vamp
-    { cx + 19, cy - 0 },   // toe tip
-    { cx + 21, cy + 4 },   // toe, bottom
-    { cx + 21, cy + 6 },   // sole, front (bottom edge closes back to the heel)
+  GPoint shoe[8] = {
+    { cx - 20, cy - 8 },   // tongue tip (pointed, upper-left)
+    { cx - 5,  cy - 3 },   // notch between tongue and ankle collar
+    { cx + 1,  cy - 11 },  // ankle collar, top-front (high-top)
+    { cx + 12, cy - 10 },  // ankle collar, top-back
+    { cx + 14, cy + 1 },   // heel, back edge
+    { cx + 14, cy + 5 },   // sole, right
+    { cx - 16, cy + 5 },   // sole, left
+    { cx - 20, cy + 1 },   // toe, rounded lower-left
   };
-  GPathInfo info = { .num_points = 10, .points = shoe };
+  GPathInfo info = { .num_points = 8, .points = shoe };
   GPath *p = gpath_create(&info);
   gpath_draw_filled(ctx, p);
   gpath_destroy(p);
@@ -197,14 +195,20 @@ static void icon_shoe(GContext *ctx, int cx, int cy, GColor col) {
 
 // Interior detail for the shoe, drawn in black over the white fill.
 static void shoe_detail(GContext *ctx, int cx, int cy) {
+  // Solid black sole bar along the bottom, as on the original Essential.
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, GRect(cx - 18, cy + 4, 33, 3), 0, GCornerNone);
   graphics_context_set_stroke_color(ctx, GColorBlack);
-  graphics_context_set_stroke_width(ctx, 2);
-  graphics_draw_line(ctx, GPoint(cx - 19, cy + 3), GPoint(cx + 21, cy + 3));  // sole line
-  graphics_draw_line(ctx, GPoint(cx - 3,  cy - 1), GPoint(cx + 11, cy + 1));  // swoosh, low sweep
-  graphics_draw_line(ctx, GPoint(cx + 11, cy + 1), GPoint(cx + 17, cy - 4));  // swoosh, up flick
+  // Two thin diagonal vamp lines following the tongue, spaced so white shows
+  // between them, on the left.
   graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_line(ctx, GPoint(cx - 11, cy - 5), GPoint(cx - 7, cy - 6));   // lace
-  graphics_draw_line(ctx, GPoint(cx - 10, cy - 2), GPoint(cx - 6, cy - 3));   // lace
+  graphics_draw_line(ctx, GPoint(cx - 18, cy - 4), GPoint(cx - 5, cy + 1));
+  graphics_draw_line(ctx, GPoint(cx - 17, cy + 1), GPoint(cx - 4, cy + 4));
+  // Three-prong "E" of eyelet lines on the ankle collar, on the right.
+  graphics_draw_line(ctx, GPoint(cx + 2, cy - 7), GPoint(cx + 2, cy + 3));   // spine
+  graphics_draw_line(ctx, GPoint(cx + 2, cy - 6), GPoint(cx + 11, cy - 6));  // top prong
+  graphics_draw_line(ctx, GPoint(cx + 2, cy - 2), GPoint(cx + 10, cy - 2));  // middle prong
+  graphics_draw_line(ctx, GPoint(cx + 2, cy + 3), GPoint(cx + 11, cy + 3));  // bottom prong
 }
 
 // A vertical battery, filled from the bottom by pct.
@@ -354,13 +358,16 @@ static void render_comp(GContext *ctx, int type, int cx, int cell_w, int dx, int
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
-// White fill with a black outline: a black halo in the eight neighbouring
-// directions, then the white fill on top.
+// White fill with a thick black outline: a black halo drawn at every offset in
+// a 5x5 grid (a ~2px border, as on the original Essential), then the fill on top.
 static void draw_comp(GContext *ctx, int type, int cx, int cell_w) {
   if (type == C_NONE) return;
-  static const int ox[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
-  static const int oy[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
-  for (int k = 0; k < 8; k++) render_comp(ctx, type, cx, cell_w, ox[k], oy[k], GColorBlack);
+  for (int dy = -2; dy <= 2; dy++) {
+    for (int dx = -2; dx <= 2; dx++) {
+      if (dx == 0 && dy == 0) continue;
+      render_comp(ctx, type, cx, cell_w, dx, dy, GColorBlack);
+    }
+  }
   render_comp(ctx, type, cx, cell_w, 0, 0, palette(s_comp));   // fill colour on top of the outline
   if (type == C_STEPS) shoe_detail(ctx, cx, ICON_CY);         // black interior lines on top
 }
@@ -374,7 +381,7 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   GColor bot_bg  = palette(s_bot);
   GColor band_fg = (s_timecol >= 0) ? palette(s_timecol) : content_on(band_bg);
 
-  int band_y = h * 48 / 100;   // top block ~48% (taller, for the bigger icons)
+  int band_y = h * 52 / 100;   // top block ~52%: taller, to let the icon row breathe
   int bot_h  = h * 10 / 100;   // short empty strip at the bottom
   int bot_y  = h - bot_h;
   int band_h = bot_y - band_y; // time band gets the rest (a bit shorter now)
@@ -398,8 +405,8 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   // Separators bounding the time band.
   if (s_sep >= 0) {
     graphics_context_set_fill_color(ctx, palette(s_sep));
-    graphics_fill_rect(ctx, GRect(0, band_y - 2, w, 4), 0, GCornerNone);
-    graphics_fill_rect(ctx, GRect(0, bot_y - 2,  w, 4), 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(0, band_y - 4, w, 8), 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(0, bot_y - 4,  w, 8), 0, GCornerNone);
   }
 
   // The time, vertically centred in the band by its measured height.
