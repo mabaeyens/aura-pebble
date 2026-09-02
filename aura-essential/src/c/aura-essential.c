@@ -159,8 +159,8 @@ static int wx_category(int code) {
 
 // ---- Complication icons (drawn in code, ~40px, so the face carries no PNGs) -
 
-#define ICON_CY 48   // vertical centre of the complication icon
-#define LABEL_Y 78   // top of the complication label
+#define ICON_CY 54   // vertical centre of the complication icon
+#define LABEL_Y 86   // top of the complication label
 
 static void icon_heart(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
