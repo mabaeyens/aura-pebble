@@ -26,7 +26,7 @@
 
 ## Pending
 
-- Publish aura-analog and aura-digital when each has a proper production build and its own store screenshots. Analog is bumped to 1.3.0 in source but has no GitHub release yet; digital has neither. Not close to release time (my call, 2026-09-02) — Essential is the current focus.
+- Publish aura-analog and aura-digital when each has a proper production build and its own store screenshots. Analog is bumped to 1.3.0 in source but has no GitHub release yet; digital has neither. Neither is close to release. Essential is the current focus.
 
 ## Notes
 
