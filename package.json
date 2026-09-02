@@ -59,6 +59,11 @@
           "name": "FONT_LECO_20",
           "file": "fonts/LECO1976-Regular.otf",
           "characterRegex": "[A-Z0-9]"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMG_MENU_ICON",
+          "file": "images/menu-icon.png"
         }
       ]
     }
