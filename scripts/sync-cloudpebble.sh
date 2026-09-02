@@ -13,6 +13,12 @@
 #   scripts/sync-cloudpebble.sh essential        # or: aura-essential
 #   scripts/sync-cloudpebble.sh analog
 #
+# The deploy branch is also pinned to Emery (Pebble Time 2) ONLY: CloudPebble
+# compiles every platform in targetPlatforms, and for fast single-device
+# iteration we don't want all five. This is applied as one extra commit on top of
+# the split, so it survives every re-sync. main keeps all five platforms for the
+# distributable .pbw.
+#
 # Then in CloudPebble set the GitHub branch to cloudpebble-<face> and pull.
 # Re-run this after committing changes to the face on main; it force-pushes the
 # regenerated split, which is expected — the branch is a mirror, not shared work.
@@ -46,6 +52,33 @@ ref="$(git rev-parse --abbrev-ref HEAD)"
 echo "splitting $dir/ (from $ref) -> $branch"
 git branch -D "$branch" 2>/dev/null || true
 git subtree split --prefix="$dir" -b "$branch"
+
+# Pin the deploy branch to Emery only, as one commit on top of the split.
+# Uses a detached worktree so the main working tree is never touched, then
+# fast-forwards the branch ref to the new tip.
+echo "pinning $branch to targetPlatforms=[emery]"
+wt="$(mktemp -d)"
+git worktree add -q --detach "$wt" "$branch"
+python3 - "$wt/package.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+with open(path) as f:
+    manifest = json.load(f)
+manifest["pebble"]["targetPlatforms"] = ["emery"]
+with open(path, "w") as f:
+    json.dump(manifest, f, indent=2)
+    f.write("\n")
+PY
+git -C "$wt" add package.json
+GIT_COMMITTER_NAME="Miguel A. Baeyens" \
+GIT_COMMITTER_EMAIL="8981792+mabaeyens@users.noreply.github.com" \
+  git -C "$wt" commit -q \
+    --author="Miguel A. Baeyens <8981792+mabaeyens@users.noreply.github.com>" \
+    -m "cloudpebble: build Emery (Pebble Time 2) only on this deploy branch"
+newtip="$(git -C "$wt" rev-parse HEAD)"
+git worktree remove --force "$wt"
+git branch -f "$branch" "$newtip"
+
 git push -f origin "$branch"
 
-echo "done: pushed '$branch'. In CloudPebble, set the GitHub branch to '$branch' and pull."
+echo "done: pushed '$branch' (Emery only). In CloudPebble, set the GitHub branch to '$branch' and pull."
