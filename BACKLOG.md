@@ -2,6 +2,8 @@
 
 ## Done
 
+- 2026-09-02 Created the appstore/dashboard icons for Essential: the Aura "A + swish" mark, white on the classic face's coral (`#E66E6B`, sampled from `essential-classic.png`), at **80x80** (Small Icon) and **144x144** (Large Icon) under `docs/store/app-icon-80.png` / `app-icon-144.png`. Added `scripts/make-app-icons.sh` to regenerate them.
+- 2026-09-02 Deleted the orphaned `docs/analog-light.png`, `docs/analog-dark.png` and `docs/emery-preview.png` (unreferenced since the README hero switched to Essential). Analog and digital get fresh builds + screenshots before they're published.
 - 2026-09-02 **Published aura-essential 1.1.0 to the Pebble appstore** (apps.repebble.com). The CloudPebble build succeeded (once the `message_keys.auto.h` fix landed on the `cloudpebble-essential` Emery-only branch) and the face is now live. First Aura face on the store.
 - 2026-09-02 Built a looping GIF of the five Essential themes (`docs/store/essential-themes.gif`, 200x228, 5 frames, 1.2s each) and attached it to the `essential-v1.1.0` GitHub release.
 - 2026-09-02 Cut the `essential-v1.1.0` GitHub release (Latest; 1.0.1 and 1.0.0 kept as history): clean all-five-platform `.pbw` verified at versionLabel 1.1.0, source zip, five theme screenshots, and the themes GIF.
@@ -24,7 +26,7 @@
 
 ## Pending
 
-- Decide what to do with `docs/analog-light.png`, `docs/analog-dark.png` and `docs/emery-preview.png`: no longer referenced by the README after the hero change, but the analog and digital faces still exist. Keep, reuse, or remove.
+- Publish aura-analog and aura-digital when each has a proper production build and its own store screenshots. Analog is bumped to 1.3.0 in source but has no GitHub release yet; digital has neither. Not close to release time (my call, 2026-09-02) — Essential is the current focus.
 
 ## Notes
 
