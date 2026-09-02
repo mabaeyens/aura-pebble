@@ -63,6 +63,11 @@
           "name": "FONT_WI_25",
           "file": "fonts/WeatherIcons-Regular.ttf",
           "characterRegex": "[]"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMG_MENU_ICON",
+          "file": "images/menu-icon.png"
         }
       ]
     }
