@@ -50,21 +50,12 @@ static const uint32_t COLOR_HEX[10] = {
 #define PKEY_COMPCOLOR 15
 #define PKEY_TIMECOLOR 16
 
-// This SDK emits the MESSAGE_KEY_* ids into message_keys.auto.c but leaves them
-// undeclared in the auto header, so declare the ones we read as extern here.
-extern uint32_t MESSAGE_KEY_SLOT1;
-extern uint32_t MESSAGE_KEY_SLOT2;
-extern uint32_t MESSAGE_KEY_SLOT3;
-extern uint32_t MESSAGE_KEY_TOPCOLOR;
-extern uint32_t MESSAGE_KEY_BANDCOLOR;
-extern uint32_t MESSAGE_KEY_BOTCOLOR;
-extern uint32_t MESSAGE_KEY_TIMEFONT;
-extern uint32_t MESSAGE_KEY_SEPCOLOR;
-extern uint32_t MESSAGE_KEY_COMPCOLOR;
-extern uint32_t MESSAGE_KEY_TIMECOLOR;
-extern uint32_t MESSAGE_KEY_WX_TEMP;
-extern uint32_t MESSAGE_KEY_WX_CODE;
-extern uint32_t MESSAGE_KEY_WX_OK;
+// Pull in the MESSAGE_KEY_* ids from the generated header rather than declaring
+// them extern by hand. pebble-tool 5.0.40 emits them as extern uint32_t globals
+// (defined in message_keys.auto.c) while 5.0.39 (what CloudPebble runs) emits
+// them as #define macros with no globals to link against; including the header
+// works with either convention, hand-written externs only work with the former.
+#include "message_keys.auto.h"
 
 static Window *s_window;
 static Layer  *s_layer;
