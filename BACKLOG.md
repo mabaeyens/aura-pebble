@@ -2,6 +2,9 @@
 
 ## Done
 
+- 2026-09-02 **Published aura-essential 1.1.0 to the Pebble appstore** (apps.repebble.com). The CloudPebble build succeeded (once the `message_keys.auto.h` fix landed on the `cloudpebble-essential` Emery-only branch) and the face is now live. First Aura face on the store.
+- 2026-09-02 Built a looping GIF of the five Essential themes (`docs/store/essential-themes.gif`, 200x228, 5 frames, 1.2s each) and attached it to the `essential-v1.1.0` GitHub release.
+- 2026-09-02 Cut the `essential-v1.1.0` GitHub release (Latest; 1.0.1 and 1.0.0 kept as history): clean all-five-platform `.pbw` verified at versionLabel 1.1.0, source zip, five theme screenshots, and the themes GIF.
 - 2026-09-02 Fixed the CloudPebble build failure (`undefined reference to MESSAGE_KEY_*` at link). Root cause: CloudPebble runs pebble-tool **5.0.39**, which emits the message keys as `#define` macros with no globals to link, while my local **5.0.40** emits them as `extern uint32_t` globals defined in `message_keys.auto.c`. Both faces hand-declared the keys `extern`, which only links against 5.0.40. Switched both `aura-essential.c` and `aura-analog.c` to `#include "message_keys.auto.h"`, which works with either convention. Bumped essential 1.0.1 -> **1.1.0** and analog 1.2.0 -> **1.3.0** (minor, store-safe `major.minor.0`). Both build clean locally on all five platforms.
 - 2026-09-02 Pinned the `cloudpebble-essential` deploy branch to **Emery only** for fast single-device CloudPebble iteration: `scripts/sync-cloudpebble.sh` now adds a commit on top of the subtree split that rewrites `targetPlatforms` to `["emery"]` (via a detached worktree), so it survives every re-sync. `main` keeps all five platforms for the distributable `.pbw` — do not publish the Emery-only CloudPebble build to the store.
 - 2026-09-02 README hero row now shows all five Essential themes (added forest and sunset to classic/ocean/midnight); confirmed the store shots already reflect the polished face, so no regeneration was needed.
@@ -21,7 +24,6 @@
 
 ## Pending
 
-- Publish aura-essential to the Pebble appstore (apps.repebble.com). Needs a browser `pebble login` (Firebase OAuth) that I cannot complete headlessly, then `pebble publish`. A dry-run check of what `publish` would send is offered once logged in.
 - Decide what to do with `docs/analog-light.png`, `docs/analog-dark.png` and `docs/emery-preview.png`: no longer referenced by the README after the hero change, but the analog and digital faces still exist. Keep, reuse, or remove.
 
 ## Notes
