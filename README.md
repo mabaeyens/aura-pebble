@@ -14,6 +14,7 @@ Aura on the phone draws around 250 illustrated weather scenes over a live sky. A
 |------|------------|--------|
 | **aura-digital** | Minimalist digital face: step count, time, date and battery, with an accent colour that tracks the time of day (echoing Aura's sun-tracking sky). | Phase 1 |
 | **aura-analog** | A Swiss-railway chronograph with the **stop-to-go** second hand (it sweeps a full turn in about 58 s, pauses at 12 for about 2 s, then releases as the minute jumps): white or black dial, black or white baton hands, twelve identical bold hour markers, and a red lollipop second hand. Four subdials, at 12, 9, 3 and 6, each set to whatever you want: the AURA wordmark, live weather, the day (red on Sundays), the date, battery, steps, heart rate, or nothing ([Settings](#settings)). See [Design origin](#design-origin). | Phase 2 |
+| **aura-essential** | A digital face in three blocks after the classic "Essential" layout: a top block with three configurable complications (steps, heart rate, battery, day of the week or weather) drawn as white icons and numbers with a black outline, a large clock centred in a white band, and a colour strip below. Every block colour, the separator and the clock font are configurable ([Settings](#settings)). | Phase 1 |
 
 Digital (Phase 1), then the analog face (Phase 2) on its light and black dials, on the Pebble Time 2 emulator:
 
@@ -36,7 +37,7 @@ To run on a real watch, enable **Dev Connect** in the Pebble phone app, then `pe
 
 ## Settings
 
-The analog face has a settings screen (open it from the Pebble phone app), built with [Clay](https://github.com/pebble-dev/clay). You can pick the black dial, turn the second hand on or off, choose what each of the four subdials shows (nothing, the AURA wordmark, weather, the day, the date, battery, steps or heart rate), and set the weather units.
+The analog and Essential faces each have a settings screen (open it from the Pebble phone app), built with [Clay](https://github.com/pebble-dev/clay). On aura-analog you can pick the black dial, turn the second hand on or off, choose what each of the four subdials shows (nothing, the AURA wordmark, weather, the day, the date, battery, steps or heart rate), and set the weather units. On aura-essential you choose what each of the three top complications shows, the colour of each block, the separator colour, and the clock font.
 
 Weather comes from [Open-Meteo](https://open-meteo.com), which needs no API key, so it stays free for anyone. The phone side (PebbleKit JS) fetches the current temperature and condition for your GPS location, or for a latitude and longitude you type in, and pushes them to the watch every 30 minutes. The condition shows as a real weather symbol (from the [Weather Icons](https://github.com/erikflowers/weather-icons) font) mapped from the WMO code. The face still works offline; the weather subdial just reads `--°` until a reading arrives.
 
