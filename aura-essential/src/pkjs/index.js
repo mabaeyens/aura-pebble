@@ -75,14 +75,47 @@ function fetchWeather(lat, lon) {
   xhr.send();
 }
 
+// Coordinates for the city picker. Order MUST match CITY_OPTIONS in config.js
+// (index = the option's value).
+var CITIES = [
+  { lat: 40.4168, lon: -3.7038 },   // 0  Madrid
+  { lat: 41.3874, lon: 2.1686 },    // 1  Barcelona
+  { lat: 39.4699, lon: -0.3763 },   // 2  Valencia
+  { lat: 37.3891, lon: -5.9845 },   // 3  Sevilla
+  { lat: 41.6488, lon: -0.8891 },   // 4  Zaragoza
+  { lat: 36.7213, lon: -4.4214 },   // 5  Malaga
+  { lat: 37.9922, lon: -1.1307 },   // 6  Murcia
+  { lat: 39.5696, lon: 2.6502 },    // 7  Palma
+  { lat: 28.1235, lon: -15.4363 },  // 8  Las Palmas
+  { lat: 43.2630, lon: -2.9350 },   // 9  Bilbao
+  { lat: 38.3452, lon: -0.4810 },   // 10 Alicante
+  { lat: 37.8882, lon: -4.7794 },   // 11 Cordoba
+  { lat: 41.6523, lon: -4.7245 },   // 12 Valladolid
+  { lat: 42.2406, lon: -8.7207 },   // 13 Vigo
+  { lat: 37.1773, lon: -3.5986 },   // 14 Granada
+  { lat: 43.3623, lon: -8.4115 },   // 15 A Coruna
+  { lat: 43.4623, lon: -3.8099 },   // 16 Santander
+  { lat: 43.3183, lon: -1.9812 },   // 17 San Sebastian
+  { lat: 28.4636, lon: -16.2518 },  // 18 Santa Cruz de Tenerife
+  { lat: 42.8125, lon: -1.6458 },   // 19 Pamplona
+  { lat: 51.5074, lon: -0.1278 },   // 20 London
+  { lat: 48.8566, lon: 2.3522 },    // 21 Paris
+  { lat: 38.7223, lon: -9.1393 }    // 22 Lisbon
+];
+
 function locateAndFetch() {
   var s = settings();
   var lat = parseFloat(s.LAT), lon = parseFloat(s.LON);
-  if (s.LOCMODE && !isNaN(lat) && !isNaN(lon)) {
+  if (s.LOCMODE && !isNaN(lat) && !isNaN(lon)) {   // manual coordinates win
     fetchWeather(lat, lon);
     return;
   }
-  navigator.geolocation.getCurrentPosition(
+  var ci = parseInt(s.CITY, 10);                   // then a picked city
+  if (!isNaN(ci) && ci >= 0 && ci < CITIES.length) {
+    fetchWeather(CITIES[ci].lat, CITIES[ci].lon);
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(        // else the phone's GPS
     function (pos) { fetchWeather(pos.coords.latitude, pos.coords.longitude); },
     function () { sendError(); },
     { timeout: 15000, maximumAge: 600000 }
