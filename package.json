@@ -53,6 +53,12 @@
           "type": "bitmap",
           "name": "IMG_SHOE",
           "file": "images/shoe.png"
+        },
+        {
+          "type": "font",
+          "name": "FONT_LECO_20",
+          "file": "fonts/LECO1976-Regular.otf",
+          "characterRegex": "[A-Z0-9]"
         }
       ]
     }
