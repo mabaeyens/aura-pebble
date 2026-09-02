@@ -76,8 +76,8 @@ module.exports = [
     "items": [
       { "type": "heading", "defaultValue": "Complications" },
       { "type": "text", "defaultValue": "Pick what each of the three top slots shows." },
-      { "type": "select", "messageKey": "SLOT1", "label": "Left", "defaultValue": "1", "options": SLOT_OPTIONS },
-      { "type": "select", "messageKey": "SLOT2", "label": "Middle", "defaultValue": "2", "options": SLOT_OPTIONS },
+      { "type": "select", "messageKey": "SLOT1", "label": "Left", "defaultValue": "4", "options": SLOT_OPTIONS },
+      { "type": "select", "messageKey": "SLOT2", "label": "Middle", "defaultValue": "1", "options": SLOT_OPTIONS },
       { "type": "select", "messageKey": "SLOT3", "label": "Right", "defaultValue": "3", "options": SLOT_OPTIONS }
     ]
   },
