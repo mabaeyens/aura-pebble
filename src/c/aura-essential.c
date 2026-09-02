@@ -83,6 +83,7 @@ static bool s_wx_ok    = false;
 
 static GFont s_f_label;   // complication labels (big bold)
 static GFont s_f_small;   // day-of-month inside the calendar glyph
+static GBitmap *s_shoe_bmp;  // the Essential shoe icon, extracted bit-by-bit
 
 static GColor palette(int i) {
   if (i < 0 || i > 9) i = 0;
@@ -162,63 +163,23 @@ static int wx_category(int code) {
 
 static void icon_heart(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_circle(ctx, GPoint(cx - 8, cy - 6), 9);
-  graphics_fill_circle(ctx, GPoint(cx + 8, cy - 6), 9);
-  GPoint tri[3] = { { cx - 16, cy - 1 }, { cx + 16, cy - 1 }, { cx, cy + 18 } };
+  graphics_fill_circle(ctx, GPoint(cx - 10, cy - 7), 11);
+  graphics_fill_circle(ctx, GPoint(cx + 10, cy - 7), 11);
+  GPoint tri[3] = { { cx - 20, cy - 1 }, { cx + 20, cy - 1 }, { cx, cy + 22 } };
   GPathInfo info = { .num_points = 3, .points = tri };
   GPath *p = gpath_create(&info);
   gpath_draw_filled(ctx, p);
   gpath_destroy(p);
 }
 
-// A side-profile running shoe (toe pointing right) for the step count. The
-// filled silhouette is drawn in the pass colour so the white-fill/black-outline
-// treatment applies; the interior lines (sole, swoosh, laces) are added
-// afterwards by shoe_detail() in black, on top of the white fill.
-static void icon_shoe(GContext *ctx, int cx, int cy, GColor col) {
-  graphics_context_set_fill_color(ctx, col);
-  GPoint shoe[8] = {
-    { cx - 20, cy - 8 },   // tongue tip (pointed, upper-left)
-    { cx - 5,  cy - 3 },   // notch between tongue and ankle collar
-    { cx + 1,  cy - 11 },  // ankle collar, top-front (high-top)
-    { cx + 12, cy - 10 },  // ankle collar, top-back
-    { cx + 14, cy + 1 },   // heel, back edge
-    { cx + 14, cy + 5 },   // sole, right
-    { cx - 16, cy + 5 },   // sole, left
-    { cx - 20, cy + 1 },   // toe, rounded lower-left
-  };
-  GPathInfo info = { .num_points = 8, .points = shoe };
-  GPath *p = gpath_create(&info);
-  gpath_draw_filled(ctx, p);
-  gpath_destroy(p);
-}
-
-// Interior detail for the shoe, drawn in black over the white fill.
-static void shoe_detail(GContext *ctx, int cx, int cy) {
-  // Solid black sole bar along the bottom, as on the original Essential.
-  graphics_context_set_fill_color(ctx, GColorBlack);
-  graphics_fill_rect(ctx, GRect(cx - 18, cy + 4, 33, 3), 0, GCornerNone);
-  graphics_context_set_stroke_color(ctx, GColorBlack);
-  // Two thin diagonal vamp lines following the tongue, spaced so white shows
-  // between them, on the left.
-  graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_line(ctx, GPoint(cx - 18, cy - 4), GPoint(cx - 5, cy + 1));
-  graphics_draw_line(ctx, GPoint(cx - 17, cy + 1), GPoint(cx - 4, cy + 4));
-  // Three-prong "E" of eyelet lines on the ankle collar, on the right.
-  graphics_draw_line(ctx, GPoint(cx + 2, cy - 7), GPoint(cx + 2, cy + 3));   // spine
-  graphics_draw_line(ctx, GPoint(cx + 2, cy - 6), GPoint(cx + 11, cy - 6));  // top prong
-  graphics_draw_line(ctx, GPoint(cx + 2, cy - 2), GPoint(cx + 10, cy - 2));  // middle prong
-  graphics_draw_line(ctx, GPoint(cx + 2, cy + 3), GPoint(cx + 11, cy + 3));  // bottom prong
-}
-
 // A vertical battery, filled from the bottom by pct.
 static void icon_battery(GContext *ctx, int cx, int cy, GColor col, int pct) {
-  int w = 23, h = 37;
+  int w = 28, h = 44;
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;
   GRect body = GRect(cx - w / 2, cy - h / 2, w, h);
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_rect(ctx, GRect(cx - 6, body.origin.y - 4, 12, 5), 1, GCornersTop);  // nub
+  graphics_fill_rect(ctx, GRect(cx - 7, body.origin.y - 5, 14, 6), 1, GCornersTop);  // nub
   graphics_context_set_stroke_color(ctx, col);
   graphics_context_set_stroke_width(ctx, 3);
   graphics_draw_rect(ctx, body);
@@ -304,20 +265,35 @@ static void icon_weather(GContext *ctx, int cx, int cy, GColor col, int code, bo
   }
 }
 
-// Draw one complication (icon + label) at a pixel offset, all in one colour.
-// Called many times to build the outline: eight black passes at 1px offsets,
-// then one white pass on top, giving white fill with a black outline like the
-// original Essential.
-static void render_comp(GContext *ctx, int type, int cx, int cell_w, int dx, int dy, GColor col) {
-  const int icon_cy = ICON_CY;
-  const int label_y = LABEL_Y;
-  int icx = cx + dx, icy = icon_cy + dy;
-  char label[12];
+// Draw one complication's ICON at a pixel offset in one colour. Called many
+// times to build the black outline, then once more for the fill on top.
+static void render_icon(GContext *ctx, int type, int cx, int dx, int dy, GColor col) {
+  int icx = cx + dx, icy = ICON_CY + dy;
+  switch (type) {
+    case C_HEART:   icon_heart(ctx, icx, icy, col); break;
+    case C_BATTERY: {
+      BatteryChargeState b = battery_state_service_peek();
+      icon_battery(ctx, icx, icy, col, b.charge_percent);
+      break;
+    }
+    case C_DAY: {
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      icon_calendar(ctx, icx, icy, col, t->tm_mday);
+      break;
+    }
+    case C_WEATHER: icon_weather(ctx, icx, icy, col, s_wx_code, s_wx_ok); break;
+    default: break;
+  }
+}
 
+// Draw one complication's LABEL, centred under the icon. Flat, no outline, like
+// the original Essential where the labels are plain white text.
+static void render_label(GContext *ctx, int type, int cx, int cell_w, GColor col) {
+  char label[12];
   switch (type) {
     case C_STEPS: {
       int s = today_steps();
-      icon_shoe(ctx, icx, icy, col);
       if (s < 0)           snprintf(label, sizeof(label), "--");
       else if (s >= 10000) snprintf(label, sizeof(label), "%dk", s / 1000);
       else                 snprintf(label, sizeof(label), "%d", s);
@@ -325,51 +301,57 @@ static void render_comp(GContext *ctx, int type, int cx, int cell_w, int dx, int
     }
     case C_HEART: {
       int hr = current_hr();
-      icon_heart(ctx, icx, icy, col);
       if (hr < 0) snprintf(label, sizeof(label), "--");
       else        snprintf(label, sizeof(label), "%d", hr);
       break;
     }
     case C_BATTERY: {
       BatteryChargeState b = battery_state_service_peek();
-      icon_battery(ctx, icx, icy, col, b.charge_percent);
       snprintf(label, sizeof(label), "%d%%", b.charge_percent);
       break;
     }
     case C_DAY: {
       time_t now = time(NULL);
       struct tm *t = localtime(&now);
-      icon_calendar(ctx, icx, icy, col, t->tm_mday);
       strftime(label, sizeof(label), "%a", t);
       upcase(label);
       break;
     }
     case C_WEATHER: {
-      icon_weather(ctx, icx, icy, col, s_wx_code, s_wx_ok);
       if (s_wx_ok) snprintf(label, sizeof(label), "%d\xC2\xB0", s_wx_temp);
       else         snprintf(label, sizeof(label), "--");
       break;
     }
     default: return;
   }
-
   graphics_context_set_text_color(ctx, col);
-  graphics_draw_text(ctx, label, s_f_label, GRect(cx - cell_w / 2 + dx, label_y + dy, cell_w, 32),
+  graphics_draw_text(ctx, label, s_f_label, GRect(cx - cell_w / 2, LABEL_Y, cell_w, 32),
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
-// White fill with a thick black outline: a black halo drawn at every offset in
-// a 5x5 grid (a ~2px border, as on the original Essential), then the fill on top.
+// The icon gets a thick, rounded black outline (a ~3px halo) so it reads on any
+// coloured top block; the fill goes on top. The label is drawn flat underneath,
+// no outline, in the complication colour (white by default).
 static void draw_comp(GContext *ctx, int type, int cx, int cell_w) {
   if (type == C_NONE) return;
-  for (int dy = -2; dy <= 2; dy++) {
-    for (int dx = -2; dx <= 2; dx++) {
-      if (dx == 0 && dy == 0) continue;
-      render_comp(ctx, type, cx, cell_w, dx, dy, GColorBlack);
+  if (type == C_STEPS && s_shoe_bmp) {
+    // The shoe is a bit-by-bit bitmap copy of the original Essential icon; it
+    // already carries its own black outline, so it needs no vector halo.
+    GRect r = gbitmap_get_bounds(s_shoe_bmp);
+    GRect dst = GRect(cx - r.size.w / 2, ICON_CY - r.size.h / 2, r.size.w, r.size.h);
+    graphics_context_set_compositing_mode(ctx, GCompOpSet);
+    graphics_draw_bitmap_in_rect(ctx, s_shoe_bmp, dst);
+  } else {
+    for (int dy = -3; dy <= 3; dy++) {
+      for (int dx = -3; dx <= 3; dx++) {
+        if (dx == 0 && dy == 0) continue;
+        if (dx * dx + dy * dy > 10) continue;   // clip the halo to a ~3px disc
+        render_icon(ctx, type, cx, dx, dy, GColorBlack);
+      }
     }
+    render_icon(ctx, type, cx, 0, 0, palette(s_comp));  // fill on top of the outline
   }
-  render_comp(ctx, type, cx, cell_w, 0, 0, palette(s_comp));   // fill colour on top of the outline
-  if (type == C_STEPS) shoe_detail(ctx, cx, ICON_CY);         // black interior lines on top
+  render_label(ctx, type, cx, cell_w, palette(s_comp)); // flat label, no outline
 }
 
 static void face_update_proc(Layer *layer, GContext *ctx) {
@@ -381,10 +363,10 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   GColor bot_bg  = palette(s_bot);
   GColor band_fg = (s_timecol >= 0) ? palette(s_timecol) : content_on(band_bg);
 
-  int band_y = h * 52 / 100;   // top block ~52%: taller, to let the icon row breathe
-  int bot_h  = h * 10 / 100;   // short empty strip at the bottom
+  int band_y = h * 57 / 100;   // top block ~57%, matching the original Essential
+  int bot_h  = h * 11 / 100;   // short colour strip at the bottom (~11% as in the original)
   int bot_y  = h - bot_h;
-  int band_h = bot_y - band_y; // time band gets the rest (a bit shorter now)
+  int band_h = bot_y - band_y; // time band gets the middle ~30%
 
   // Top block: solid colour + three complications.
   graphics_context_set_fill_color(ctx, top_bg);
@@ -405,8 +387,8 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   // Separators bounding the time band.
   if (s_sep >= 0) {
     graphics_context_set_fill_color(ctx, palette(s_sep));
-    graphics_fill_rect(ctx, GRect(0, band_y - 4, w, 8), 0, GCornerNone);
-    graphics_fill_rect(ctx, GRect(0, bot_y - 4,  w, 8), 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(0, band_y - 3, w, 6), 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(0, bot_y - 3,  w, 6), 0, GCornerNone);
   }
 
   // The time, vertically centred in the band by its measured height.
@@ -484,6 +466,7 @@ static void window_unload(Window *window) {
 static void init(void) {
   s_f_label = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
   s_f_small = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+  s_shoe_bmp = gbitmap_create_with_resource(RESOURCE_ID_IMG_SHOE);
 
   load_settings();
 
@@ -504,6 +487,7 @@ static void init(void) {
 static void deinit(void) {
   tick_timer_service_unsubscribe();
   battery_state_service_unsubscribe();
+  if (s_shoe_bmp) gbitmap_destroy(s_shoe_bmp);
   window_destroy(s_window);
 }
 

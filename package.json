@@ -48,7 +48,13 @@
       "WX_OK"
     ],
     "resources": {
-      "media": []
+      "media": [
+        {
+          "type": "bitmap",
+          "name": "IMG_SHOE",
+          "file": "images/shoe.png"
+        }
+      ]
     }
   }
 }
