@@ -27,7 +27,6 @@
 
 ## Pending
 
-- Decide the dashboard app-icon glow position. The committed brand icon (and the downscaled `app-icon-80/144.png`) has the warm glow in the **top-left** corner; I flagged that the request mentioned the **top-right**. Moving it needs compositing, not just a downscale. No change made yet, awaiting a decision.
 - Publish aura-analog and aura-digital when each has a proper production build and its own store screenshots. Analog is bumped to 1.3.0 in source but has no GitHub release yet; digital has neither. Neither is close to release. Essential is the current focus.
 
 ## Notes
