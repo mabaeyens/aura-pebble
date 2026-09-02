@@ -2,6 +2,9 @@
 build/
 *.pbw
 
+# CloudPebble import zips (regenerated on demand from a face subdir)
+*-cloudpebble.zip
+
 # Pebble tooling
 .pebble-cache/
 node_modules/
