@@ -151,6 +151,9 @@ static int wx_category(int code) {
 
 // ---- Complication icons (drawn in code, ~40px, so the face carries no PNGs) -
 
+#define ICON_CY 42   // vertical centre of the complication icon
+#define LABEL_Y 62   // top of the complication label
+
 static void icon_heart(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
   graphics_fill_circle(ctx, GPoint(cx - 7, cy - 5), 8);
@@ -162,17 +165,40 @@ static void icon_heart(GContext *ctx, int cx, int cy, GColor col) {
   gpath_destroy(p);
 }
 
-// A side-profile sneaker silhouette for the step count.
+// A side-profile running shoe (toe pointing right) for the step count. The
+// filled silhouette is drawn in the pass colour so the white-fill/black-outline
+// treatment applies; the interior lines (sole, swoosh, laces) are added
+// afterwards by shoe_detail() in black, on top of the white fill.
 static void icon_shoe(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
-  GPoint shoe[8] = {
-    { cx - 17, cy - 3 }, { cx - 13, cy - 10 }, { cx - 3, cy - 10 }, { cx + 1, cy - 4 },
-    { cx + 9, cy - 1 },  { cx + 18, cy + 4 },  { cx + 18, cy + 8 }, { cx - 17, cy + 8 },
+  GPoint shoe[10] = {
+    { cx - 17, cy + 5 },   // heel, bottom
+    { cx - 16, cy - 1 },   // heel, back
+    { cx - 12, cy - 6 },   // collar, back
+    { cx - 7,  cy - 7 },   // collar, front
+    { cx - 5,  cy - 3 },   // tongue dip
+    { cx - 1,  cy - 5 },   // instep
+    { cx + 7,  cy - 2 },   // vamp
+    { cx + 16, cy - 0 },   // toe tip
+    { cx + 18, cy + 3 },   // toe, bottom
+    { cx + 18, cy + 5 },   // sole, front (bottom edge closes back to the heel)
   };
-  GPathInfo info = { .num_points = 8, .points = shoe };
+  GPathInfo info = { .num_points = 10, .points = shoe };
   GPath *p = gpath_create(&info);
   gpath_draw_filled(ctx, p);
   gpath_destroy(p);
+}
+
+// Interior detail for the shoe, drawn in black over the white fill.
+static void shoe_detail(GContext *ctx, int cx, int cy) {
+  graphics_context_set_stroke_color(ctx, GColorBlack);
+  graphics_context_set_stroke_width(ctx, 2);
+  graphics_draw_line(ctx, GPoint(cx - 16, cy + 2), GPoint(cx + 18, cy + 2));  // sole line
+  graphics_draw_line(ctx, GPoint(cx - 3,  cy - 1), GPoint(cx + 9,  cy + 1));  // swoosh, low sweep
+  graphics_draw_line(ctx, GPoint(cx + 9,  cy + 1), GPoint(cx + 14, cy - 3));  // swoosh, up flick
+  graphics_context_set_stroke_width(ctx, 1);
+  graphics_draw_line(ctx, GPoint(cx - 9, cy - 4), GPoint(cx - 6, cy - 5));    // lace
+  graphics_draw_line(ctx, GPoint(cx - 8, cy - 2), GPoint(cx - 5, cy - 3));    // lace
 }
 
 // A vertical battery, filled from the bottom by pct.
@@ -273,8 +299,8 @@ static void icon_weather(GContext *ctx, int cx, int cy, GColor col, int code, bo
 // then one white pass on top, giving white fill with a black outline like the
 // original Essential.
 static void render_comp(GContext *ctx, int type, int cx, int cell_w, int dx, int dy, GColor col) {
-  const int icon_cy = 42;
-  const int label_y = 62;
+  const int icon_cy = ICON_CY;
+  const int label_y = LABEL_Y;
   int icx = cx + dx, icy = icon_cy + dy;
   char label[12];
 
@@ -330,6 +356,7 @@ static void draw_comp(GContext *ctx, int type, int cx, int cell_w) {
   static const int oy[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
   for (int k = 0; k < 8; k++) render_comp(ctx, type, cx, cell_w, ox[k], oy[k], GColorBlack);
   render_comp(ctx, type, cx, cell_w, 0, 0, GColorWhite);
+  if (type == C_STEPS) shoe_detail(ctx, cx, ICON_CY);  // black interior lines on top
 }
 
 static void face_update_proc(Layer *layer, GContext *ctx) {
