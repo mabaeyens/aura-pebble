@@ -240,14 +240,18 @@ static void wx_sun(GContext *ctx, int cx, int cy, GColor col, int r) {
   }
 }
 
-// The sun with its own ~2px black halo, so it reads as fully separate when it
-// sits on top of the white cloud in the partly-cloudy icon.
+// The sun drawn on top of the cloud. In the fill pass it gets its own ~2px black
+// halo so it reads as separate over the white cloud; in the outer-halo passes
+// (fill == black) that local halo is skipped, so the sun's outward outline is the
+// same 3px as the cloud's instead of compounding to ~5px.
 static void wx_sun_outlined(GContext *ctx, int cx, int cy, GColor fill, int r) {
-  for (int dy = -2; dy <= 2; dy++)
-    for (int dx = -2; dx <= 2; dx++) {
-      if (dx * dx + dy * dy > 5) continue;
-      wx_sun(ctx, cx + dx, cy + dy, GColorBlack, r);
-    }
+  if (!gcolor_equal(fill, GColorBlack)) {
+    for (int dy = -2; dy <= 2; dy++)
+      for (int dx = -2; dx <= 2; dx++) {
+        if (dx * dx + dy * dy > 5) continue;
+        wx_sun(ctx, cx + dx, cy + dy, GColorBlack, r);
+      }
+  }
   wx_sun(ctx, cx, cy, fill, r);
 }
 
