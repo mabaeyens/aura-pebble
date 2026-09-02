@@ -34,17 +34,12 @@
 #define PKEY_RIGHT    12
 #define PKEY_BOTTOM   13
 
-// AppMessage keys are emitted as runtime uint32_t vars in message_keys.auto.c,
-// but this SDK's generated header leaves them undeclared: declare them here.
-extern uint32_t MESSAGE_KEY_THEME;
-extern uint32_t MESSAGE_KEY_SECONDS;
-extern uint32_t MESSAGE_KEY_TOP;
-extern uint32_t MESSAGE_KEY_LEFT;
-extern uint32_t MESSAGE_KEY_RIGHT;
-extern uint32_t MESSAGE_KEY_BOTTOM;
-extern uint32_t MESSAGE_KEY_WX_TEMP;
-extern uint32_t MESSAGE_KEY_WX_CODE;
-extern uint32_t MESSAGE_KEY_WX_OK;
+// Pull the MESSAGE_KEY_* ids from the generated header instead of hand-declaring
+// them extern. pebble-tool 5.0.40 emits them as extern uint32_t globals (defined
+// in message_keys.auto.c); 5.0.39 (what CloudPebble runs) emits #define macros
+// with no globals to link. Including the header works with either convention;
+// hand-written externs link only against the former (CloudPebble fails on them).
+#include "message_keys.auto.h"
 
 static Window *s_window;
 static Layer *s_face_layer;
