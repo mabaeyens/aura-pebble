@@ -47,6 +47,8 @@ static const uint32_t COLOR_HEX[10] = {
 #define PKEY_TIMEFONT  12
 #define PKEY_SEPCOLOR  13
 #define PKEY_BOTCOLOR  14
+#define PKEY_COMPCOLOR 15
+#define PKEY_TIMECOLOR 16
 
 // This SDK emits the MESSAGE_KEY_* ids into message_keys.auto.c but leaves them
 // undeclared in the auto header, so declare the ones we read as extern here.
@@ -58,6 +60,8 @@ extern uint32_t MESSAGE_KEY_BANDCOLOR;
 extern uint32_t MESSAGE_KEY_BOTCOLOR;
 extern uint32_t MESSAGE_KEY_TIMEFONT;
 extern uint32_t MESSAGE_KEY_SEPCOLOR;
+extern uint32_t MESSAGE_KEY_COMPCOLOR;
+extern uint32_t MESSAGE_KEY_TIMECOLOR;
 extern uint32_t MESSAGE_KEY_WX_TEMP;
 extern uint32_t MESSAGE_KEY_WX_CODE;
 extern uint32_t MESSAGE_KEY_WX_OK;
@@ -71,6 +75,8 @@ static int  s_band     = 7;   // time band colour index (white)
 static int  s_bot      = 0;   // bottom block colour index
 static int  s_font     = 0;   // time font index
 static int  s_sep      = 6;   // separator colour index (black); -1 = off
+static int  s_comp     = 7;   // complication fill colour index (white)
+static int  s_timecol  = -1;  // time digit colour index; -1 = auto by band luminance
 static int  s_wx_temp  = 0;
 static int  s_wx_code  = 0;
 static bool s_wx_ok    = false;
@@ -151,14 +157,14 @@ static int wx_category(int code) {
 
 // ---- Complication icons (drawn in code, ~40px, so the face carries no PNGs) -
 
-#define ICON_CY 42   // vertical centre of the complication icon
-#define LABEL_Y 62   // top of the complication label
+#define ICON_CY 46   // vertical centre of the complication icon
+#define LABEL_Y 74   // top of the complication label
 
 static void icon_heart(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_circle(ctx, GPoint(cx - 7, cy - 5), 8);
-  graphics_fill_circle(ctx, GPoint(cx + 7, cy - 5), 8);
-  GPoint tri[3] = { { cx - 14, cy - 1 }, { cx + 14, cy - 1 }, { cx, cy + 16 } };
+  graphics_fill_circle(ctx, GPoint(cx - 8, cy - 6), 9);
+  graphics_fill_circle(ctx, GPoint(cx + 8, cy - 6), 9);
+  GPoint tri[3] = { { cx - 16, cy - 1 }, { cx + 16, cy - 1 }, { cx, cy + 18 } };
   GPathInfo info = { .num_points = 3, .points = tri };
   GPath *p = gpath_create(&info);
   gpath_draw_filled(ctx, p);
@@ -172,16 +178,16 @@ static void icon_heart(GContext *ctx, int cx, int cy, GColor col) {
 static void icon_shoe(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
   GPoint shoe[10] = {
-    { cx - 17, cy + 5 },   // heel, bottom
-    { cx - 16, cy - 1 },   // heel, back
-    { cx - 12, cy - 6 },   // collar, back
-    { cx - 7,  cy - 7 },   // collar, front
-    { cx - 5,  cy - 3 },   // tongue dip
-    { cx - 1,  cy - 5 },   // instep
-    { cx + 7,  cy - 2 },   // vamp
-    { cx + 16, cy - 0 },   // toe tip
-    { cx + 18, cy + 3 },   // toe, bottom
-    { cx + 18, cy + 5 },   // sole, front (bottom edge closes back to the heel)
+    { cx - 20, cy + 6 },   // heel, bottom
+    { cx - 19, cy - 1 },   // heel, back
+    { cx - 14, cy - 7 },   // collar, back
+    { cx - 8,  cy - 8 },   // collar, front
+    { cx - 6,  cy - 4 },   // tongue dip
+    { cx - 1,  cy - 6 },   // instep
+    { cx + 8,  cy - 2 },   // vamp
+    { cx + 19, cy - 0 },   // toe tip
+    { cx + 21, cy + 4 },   // toe, bottom
+    { cx + 21, cy + 6 },   // sole, front (bottom edge closes back to the heel)
   };
   GPathInfo info = { .num_points = 10, .points = shoe };
   GPath *p = gpath_create(&info);
@@ -193,22 +199,22 @@ static void icon_shoe(GContext *ctx, int cx, int cy, GColor col) {
 static void shoe_detail(GContext *ctx, int cx, int cy) {
   graphics_context_set_stroke_color(ctx, GColorBlack);
   graphics_context_set_stroke_width(ctx, 2);
-  graphics_draw_line(ctx, GPoint(cx - 16, cy + 2), GPoint(cx + 18, cy + 2));  // sole line
-  graphics_draw_line(ctx, GPoint(cx - 3,  cy - 1), GPoint(cx + 9,  cy + 1));  // swoosh, low sweep
-  graphics_draw_line(ctx, GPoint(cx + 9,  cy + 1), GPoint(cx + 14, cy - 3));  // swoosh, up flick
+  graphics_draw_line(ctx, GPoint(cx - 19, cy + 3), GPoint(cx + 21, cy + 3));  // sole line
+  graphics_draw_line(ctx, GPoint(cx - 3,  cy - 1), GPoint(cx + 11, cy + 1));  // swoosh, low sweep
+  graphics_draw_line(ctx, GPoint(cx + 11, cy + 1), GPoint(cx + 17, cy - 4));  // swoosh, up flick
   graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_line(ctx, GPoint(cx - 9, cy - 4), GPoint(cx - 6, cy - 5));    // lace
-  graphics_draw_line(ctx, GPoint(cx - 8, cy - 2), GPoint(cx - 5, cy - 3));    // lace
+  graphics_draw_line(ctx, GPoint(cx - 11, cy - 5), GPoint(cx - 7, cy - 6));   // lace
+  graphics_draw_line(ctx, GPoint(cx - 10, cy - 2), GPoint(cx - 6, cy - 3));   // lace
 }
 
 // A vertical battery, filled from the bottom by pct.
 static void icon_battery(GContext *ctx, int cx, int cy, GColor col, int pct) {
-  int w = 20, h = 32;
+  int w = 23, h = 37;
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;
   GRect body = GRect(cx - w / 2, cy - h / 2, w, h);
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_rect(ctx, GRect(cx - 5, body.origin.y - 4, 10, 5), 1, GCornersTop);  // nub
+  graphics_fill_rect(ctx, GRect(cx - 6, body.origin.y - 4, 12, 5), 1, GCornersTop);  // nub
   graphics_context_set_stroke_color(ctx, col);
   graphics_context_set_stroke_width(ctx, 3);
   graphics_draw_rect(ctx, body);
@@ -219,27 +225,27 @@ static void icon_battery(GContext *ctx, int cx, int cy, GColor col, int pct) {
 }
 
 static void icon_calendar(GContext *ctx, int cx, int cy, GColor col, int mday) {
-  GRect body = GRect(cx - 16, cy - 11, 32, 30);
+  GRect body = GRect(cx - 18, cy - 13, 36, 35);
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_rect(ctx, GRect(cx - 10, cy - 16, 4, 7), 1, GCornersAll);   // binder tabs
-  graphics_fill_rect(ctx, GRect(cx + 6,  cy - 16, 4, 7), 1, GCornersAll);
+  graphics_fill_rect(ctx, GRect(cx - 11, cy - 18, 5, 8), 1, GCornersAll);   // binder tabs
+  graphics_fill_rect(ctx, GRect(cx + 6,  cy - 18, 5, 8), 1, GCornersAll);
   graphics_context_set_stroke_color(ctx, col);
   graphics_context_set_stroke_width(ctx, 3);
   graphics_draw_round_rect(ctx, body, 4);
-  graphics_fill_rect(ctx, GRect(body.origin.x, body.origin.y, body.size.w, 7), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(body.origin.x, body.origin.y, body.size.w, 8), 0, GCornerNone);
   char d[3];
   snprintf(d, sizeof(d), "%d", mday);
   graphics_context_set_text_color(ctx, col);
-  graphics_draw_text(ctx, d, s_f_small, GRect(body.origin.x, body.origin.y + 7, body.size.w, 22),
+  graphics_draw_text(ctx, d, s_f_small, GRect(body.origin.x, body.origin.y + 9, body.size.w, 24),
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
 static void wx_cloud(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_circle(ctx, GPoint(cx - 9, cy + 3), 7);
-  graphics_fill_circle(ctx, GPoint(cx + 9, cy + 3), 7);
-  graphics_fill_circle(ctx, GPoint(cx,     cy - 4), 10);
-  graphics_fill_rect(ctx, GRect(cx - 16, cy + 3, 32, 8), 0, GCornerNone);
+  graphics_fill_circle(ctx, GPoint(cx - 10, cy + 3), 8);
+  graphics_fill_circle(ctx, GPoint(cx + 10, cy + 3), 8);
+  graphics_fill_circle(ctx, GPoint(cx,      cy - 5), 11);
+  graphics_fill_rect(ctx, GRect(cx - 18, cy + 3, 36, 9), 0, GCornerNone);
 }
 
 static void wx_sun(GContext *ctx, int cx, int cy, GColor col, int r) {
@@ -259,32 +265,32 @@ static void wx_sun(GContext *ctx, int cx, int cy, GColor col, int r) {
 static void icon_weather(GContext *ctx, int cx, int cy, GColor col, int code, bool ok) {
   if (!ok) { wx_cloud(ctx, cx, cy, col); return; }
   switch (wx_category(code)) {
-    case WX_CLEAR:  wx_sun(ctx, cx, cy, col, 10); break;
-    case WX_PARTLY: wx_sun(ctx, cx - 8, cy - 8, col, 6); wx_cloud(ctx, cx + 4, cy + 4, col); break;
+    case WX_CLEAR:  wx_sun(ctx, cx, cy, col, 11); break;
+    case WX_PARTLY: wx_sun(ctx, cx - 9, cy - 9, col, 7); wx_cloud(ctx, cx + 4, cy + 5, col); break;
     case WX_CLOUD:  wx_cloud(ctx, cx, cy, col); break;
     case WX_FOG:
       graphics_context_set_stroke_color(ctx, col);
       graphics_context_set_stroke_width(ctx, 3);
       for (int i = 0; i < 4; i++)
-        graphics_draw_line(ctx, GPoint(cx - 15, cy - 9 + i * 6), GPoint(cx + 15, cy - 9 + i * 6));
+        graphics_draw_line(ctx, GPoint(cx - 17, cy - 10 + i * 7), GPoint(cx + 17, cy - 10 + i * 7));
       break;
     case WX_RAIN:
-      wx_cloud(ctx, cx, cy - 4, col);
+      wx_cloud(ctx, cx, cy - 5, col);
       graphics_context_set_stroke_color(ctx, col);
       graphics_context_set_stroke_width(ctx, 3);
       for (int i = 0; i < 3; i++)
-        graphics_draw_line(ctx, GPoint(cx - 10 + i * 10, cy + 11), GPoint(cx - 10 + i * 10, cy + 19));
+        graphics_draw_line(ctx, GPoint(cx - 11 + i * 11, cy + 13), GPoint(cx - 11 + i * 11, cy + 22));
       break;
     case WX_SNOW:
-      wx_cloud(ctx, cx, cy - 4, col);
+      wx_cloud(ctx, cx, cy - 5, col);
       graphics_context_set_fill_color(ctx, col);
       for (int i = 0; i < 3; i++)
-        graphics_fill_circle(ctx, GPoint(cx - 10 + i * 10, cy + 15), 3);
+        graphics_fill_circle(ctx, GPoint(cx - 11 + i * 11, cy + 17), 3);
       break;
     case WX_STORM: {
-      wx_cloud(ctx, cx, cy - 4, col);
+      wx_cloud(ctx, cx, cy - 5, col);
       graphics_context_set_fill_color(ctx, col);
-      GPoint bolt[4] = { { cx + 3, cy + 7 }, { cx - 6, cy + 18 }, { cx + 1, cy + 18 }, { cx - 4, cy + 27 } };
+      GPoint bolt[4] = { { cx + 3, cy + 8 }, { cx - 7, cy + 20 }, { cx + 1, cy + 20 }, { cx - 4, cy + 30 } };
       GPathInfo info = { .num_points = 4, .points = bolt };
       GPath *p = gpath_create(&info);
       gpath_draw_filled(ctx, p);
@@ -355,8 +361,8 @@ static void draw_comp(GContext *ctx, int type, int cx, int cell_w) {
   static const int ox[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
   static const int oy[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
   for (int k = 0; k < 8; k++) render_comp(ctx, type, cx, cell_w, ox[k], oy[k], GColorBlack);
-  render_comp(ctx, type, cx, cell_w, 0, 0, GColorWhite);
-  if (type == C_STEPS) shoe_detail(ctx, cx, ICON_CY);  // black interior lines on top
+  render_comp(ctx, type, cx, cell_w, 0, 0, palette(s_comp));   // fill colour on top of the outline
+  if (type == C_STEPS) shoe_detail(ctx, cx, ICON_CY);         // black interior lines on top
 }
 
 static void face_update_proc(Layer *layer, GContext *ctx) {
@@ -366,12 +372,12 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   GColor top_bg  = palette(s_top);
   GColor band_bg = palette(s_band);
   GColor bot_bg  = palette(s_bot);
-  GColor band_fg = content_on(band_bg);
+  GColor band_fg = (s_timecol >= 0) ? palette(s_timecol) : content_on(band_bg);
 
-  int band_y = h * 44 / 100;   // top block ~44%
+  int band_y = h * 48 / 100;   // top block ~48% (taller, for the bigger icons)
   int bot_h  = h * 10 / 100;   // short empty strip at the bottom
   int bot_y  = h - bot_h;
-  int band_h = bot_y - band_y; // time band gets the rest
+  int band_h = bot_y - band_y; // time band gets the rest (a bit shorter now)
 
   // Top block: solid colour + three complications.
   graphics_context_set_fill_color(ctx, top_bg);
@@ -430,6 +436,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((tp = dict_find(iter, MESSAGE_KEY_BOTCOLOR)))  { s_bot  = tuple_int(tp); persist_write_int(PKEY_BOTCOLOR, s_bot); }
   if ((tp = dict_find(iter, MESSAGE_KEY_TIMEFONT)))  { s_font = tuple_int(tp); persist_write_int(PKEY_TIMEFONT, s_font); }
   if ((tp = dict_find(iter, MESSAGE_KEY_SEPCOLOR)))  { s_sep  = tuple_int(tp); persist_write_int(PKEY_SEPCOLOR, s_sep); }
+  if ((tp = dict_find(iter, MESSAGE_KEY_COMPCOLOR))) { s_comp    = tuple_int(tp); persist_write_int(PKEY_COMPCOLOR, s_comp); }
+  if ((tp = dict_find(iter, MESSAGE_KEY_TIMECOLOR))) { s_timecol = tuple_int(tp); persist_write_int(PKEY_TIMECOLOR, s_timecol); }
   if ((tp = dict_find(iter, MESSAGE_KEY_WX_OK)))     { s_wx_ok   = tp->value->int32; persist_write_bool(PKEY_WX_OK, s_wx_ok); }
   if ((tp = dict_find(iter, MESSAGE_KEY_WX_TEMP)))   { s_wx_temp = tp->value->int32; persist_write_int(PKEY_WX_TEMP, s_wx_temp); }
   if ((tp = dict_find(iter, MESSAGE_KEY_WX_CODE)))   { s_wx_code = tp->value->int32; persist_write_int(PKEY_WX_CODE, s_wx_code); }
@@ -445,6 +453,8 @@ static void load_settings(void) {
   if (persist_exists(PKEY_BOTCOLOR))  s_bot     = persist_read_int(PKEY_BOTCOLOR);
   if (persist_exists(PKEY_TIMEFONT))  s_font    = persist_read_int(PKEY_TIMEFONT);
   if (persist_exists(PKEY_SEPCOLOR))  s_sep     = persist_read_int(PKEY_SEPCOLOR);
+  if (persist_exists(PKEY_COMPCOLOR)) s_comp    = persist_read_int(PKEY_COMPCOLOR);
+  if (persist_exists(PKEY_TIMECOLOR)) s_timecol = persist_read_int(PKEY_TIMECOLOR);
   if (persist_exists(PKEY_WX_TEMP))   s_wx_temp = persist_read_int(PKEY_WX_TEMP);
   if (persist_exists(PKEY_WX_CODE))   s_wx_code = persist_read_int(PKEY_WX_CODE);
   if (persist_exists(PKEY_WX_OK))     s_wx_ok   = persist_read_bool(PKEY_WX_OK);

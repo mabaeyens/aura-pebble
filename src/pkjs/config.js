@@ -37,6 +37,39 @@ var FONT_OPTIONS = [
 
 var SEP_OPTIONS = [{ "label": "Off", "value": "-1" }].concat(COLOR_OPTIONS);
 
+// Time digits can follow the band automatically or take a fixed colour.
+var TIME_COLOR_OPTIONS = [{ "label": "Auto (by band)", "value": "-1" }].concat(COLOR_OPTIONS);
+
+// City picker for weather. "value" is the index into the CITIES table in
+// index.js (which holds the coordinates); keep the two lists in the same order.
+// "-1" means use the phone's GPS.
+var CITY_OPTIONS = [
+  { "label": "GPS location", "value": "-1" },
+  { "label": "Madrid, ES", "value": "0" },
+  { "label": "Barcelona, ES", "value": "1" },
+  { "label": "Valencia, ES", "value": "2" },
+  { "label": "Sevilla, ES", "value": "3" },
+  { "label": "Zaragoza, ES", "value": "4" },
+  { "label": "Malaga, ES", "value": "5" },
+  { "label": "Murcia, ES", "value": "6" },
+  { "label": "Palma, ES", "value": "7" },
+  { "label": "Las Palmas, ES", "value": "8" },
+  { "label": "Bilbao, ES", "value": "9" },
+  { "label": "Alicante, ES", "value": "10" },
+  { "label": "Cordoba, ES", "value": "11" },
+  { "label": "Valladolid, ES", "value": "12" },
+  { "label": "Vigo, ES", "value": "13" },
+  { "label": "Granada, ES", "value": "14" },
+  { "label": "A Coruna, ES", "value": "15" },
+  { "label": "Santander, ES", "value": "16" },
+  { "label": "San Sebastian, ES", "value": "17" },
+  { "label": "Santa Cruz de Tenerife, ES", "value": "18" },
+  { "label": "Pamplona, ES", "value": "19" },
+  { "label": "London, UK", "value": "20" },
+  { "label": "Paris, FR", "value": "21" },
+  { "label": "Lisbon, PT", "value": "22" }
+];
+
 module.exports = [
   {
     "type": "section",
@@ -55,6 +88,8 @@ module.exports = [
       { "type": "select", "messageKey": "TOPCOLOR", "label": "Top block", "defaultValue": "0", "options": COLOR_OPTIONS },
       { "type": "select", "messageKey": "BANDCOLOR", "label": "Time band", "defaultValue": "7", "options": COLOR_OPTIONS },
       { "type": "select", "messageKey": "BOTCOLOR", "label": "Bottom block", "defaultValue": "0", "options": COLOR_OPTIONS },
+      { "type": "select", "messageKey": "COMPCOLOR", "label": "Complications", "defaultValue": "7", "options": COLOR_OPTIONS },
+      { "type": "select", "messageKey": "TIMECOLOR", "label": "Time digits", "defaultValue": "-1", "options": TIME_COLOR_OPTIONS },
       { "type": "select", "messageKey": "SEPCOLOR", "label": "Separator", "defaultValue": "6", "options": SEP_OPTIONS }
     ]
   },
@@ -71,7 +106,9 @@ module.exports = [
       { "type": "heading", "defaultValue": "Weather" },
       { "type": "text", "defaultValue": "Used by any slot set to Weather, from Open-Meteo." },
       { "type": "toggle", "messageKey": "UNITS", "label": "Fahrenheit (off = Celsius)", "defaultValue": false },
-      { "type": "toggle", "messageKey": "LOCMODE", "label": "Set location manually (off = GPS)", "defaultValue": false },
+      { "type": "select", "messageKey": "CITY", "label": "City", "defaultValue": "-1", "options": CITY_OPTIONS },
+      { "type": "text", "defaultValue": "Manual coordinates below override the city; the city overrides GPS." },
+      { "type": "toggle", "messageKey": "LOCMODE", "label": "Set location manually (off = GPS/city)", "defaultValue": false },
       { "type": "input", "messageKey": "LAT", "label": "Latitude", "attributes": { "placeholder": "40.4168", "type": "text" } },
       { "type": "input", "messageKey": "LON", "label": "Longitude", "attributes": { "placeholder": "-3.7038", "type": "text" } }
     ]
