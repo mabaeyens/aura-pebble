@@ -206,7 +206,15 @@ static void calendar_detail(GContext *ctx, int cx, int cy, int mday) {
   char d[3];
   snprintf(d, sizeof(d), "%d", mday);
   graphics_context_set_text_color(ctx, GColorBlack);
-  graphics_draw_text(ctx, d, s_f_date, GRect(cx - 18, cy - 3, 36, 28),
+  // Vertically centre the date in the readable white area. The body runs
+  // cy-11..cy+22; the tabs cover the very top, so the visible white centres a
+  // little below the body midpoint. Measure the glyph and place its box so the
+  // digit sits on that centre (LECO's tall line box otherwise bottom-aligns it).
+  GRect box = GRect(cx - 18, cy - 3, 36, 28);
+  GSize sz = graphics_text_layout_get_content_size(
+      d, s_f_date, box, GTextOverflowModeFill, GTextAlignmentCenter);
+  box.origin.y = (cy + 3) - sz.h / 2;   // +3 (not the body midpoint): LECO sits low in its line box
+  graphics_draw_text(ctx, d, s_f_date, box,
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
@@ -232,11 +240,24 @@ static void wx_sun(GContext *ctx, int cx, int cy, GColor col, int r) {
   }
 }
 
+// The sun with its own ~2px black halo, so it reads as fully separate when it
+// sits on top of the white cloud in the partly-cloudy icon.
+static void wx_sun_outlined(GContext *ctx, int cx, int cy, GColor fill, int r) {
+  for (int dy = -2; dy <= 2; dy++)
+    for (int dx = -2; dx <= 2; dx++) {
+      if (dx * dx + dy * dy > 5) continue;
+      wx_sun(ctx, cx + dx, cy + dy, GColorBlack, r);
+    }
+  wx_sun(ctx, cx, cy, fill, r);
+}
+
 static void icon_weather(GContext *ctx, int cx, int cy, GColor col, int code, bool ok) {
   if (!ok) { wx_cloud(ctx, cx, cy, col); return; }
   switch (wx_category(code)) {
     case WX_CLEAR:  wx_sun(ctx, cx, cy, col, 11); break;
-    case WX_PARTLY: wx_sun(ctx, cx - 9, cy - 9, col, 7); wx_cloud(ctx, cx + 4, cy + 5, col); break;
+    // Cloud first, then the sun on top so the sun is completely visible; the sun
+    // carries its own black outline (wx_sun_outlined) to separate it from the cloud.
+    case WX_PARTLY: wx_cloud(ctx, cx + 4, cy + 5, col); wx_sun_outlined(ctx, cx - 8, cy - 8, col, 7); break;
     case WX_CLOUD:  wx_cloud(ctx, cx, cy, col); break;
     case WX_FOG:
       graphics_context_set_stroke_color(ctx, col);
