@@ -105,4 +105,140 @@ function shape(j, loc, isMetric) {
   };
 }
 
-module.exports = { fetchOpenMeteo: fetchOpenMeteo };
+// ---- AEMET (Spain, key required) -------------------------------------------
+// Two-call model per endpoint: an envelope carrying a temporary `datos` URL,
+// then the payload at that URL (docs/01). Daily and hourly are separate
+// endpoints. AEMET always reports Celsius, so F is converted here; the hourly
+// product carries orto/ocaso, so no sun-time maths is needed. On any failure the
+// caller falls back to Open-Meteo, so this never blanks the screen.
+
+var AEMET_BASE = 'https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/';
+
+function aemetEnvelope(url, onOk, onErr) {
+  xhrJSON(url, 15000, function (env) {
+    if (env.estado === 429) { onErr('aemet 429'); return; }
+    if (!env.datos) { onErr('aemet estado ' + env.estado); return; }
+    xhrJSON(env.datos, 15000, onOk, onErr);   // the signed datos URL needs no key
+  }, onErr);
+}
+
+function fetchAEMET(loc, isMetric, onOk, onErr) {
+  var key = encodeURIComponent(loc.aemetKey);
+  aemetEnvelope(AEMET_BASE + 'diaria/' + loc.ine + '?api_key=' + key, function (daily) {
+    aemetEnvelope(AEMET_BASE + 'horaria/' + loc.ine + '?api_key=' + key, function (hourly) {
+      try { onOk(shapeAEMET(daily, hourly, loc, isMetric)); }
+      catch (e) { onErr('aemet shape: ' + e); }
+    }, onErr);
+  }, onErr);
+}
+
+function toF(c, isMetric) { return isMetric ? c : Math.round(c * 9 / 5 + 32); }
+function pInt(s) { var n = parseInt(s, 10); return isNaN(n) ? 0 : n; }
+
+// Index an AEMET hourly array ({value, periodo}) by its two-digit hour periodo.
+function byHour(arr) {
+  var m = {};
+  for (var i = 0; arr && i < arr.length; i++) m[arr[i].periodo] = arr[i].value;
+  return m;
+}
+
+// Precip probability per hour from AEMET's coarse blocks (periodo like "0814").
+function popByHour(arr) {
+  var out = [];
+  for (var h = 0; h < 24; h++) out.push(0);
+  for (var i = 0; arr && i < arr.length; i++) {
+    var p = arr[i].periodo || '';
+    if (p.length !== 4) continue;
+    var a = pInt(p.slice(0, 2)), b = pInt(p.slice(2, 4)), v = pInt(arr[i].value);
+    for (var h2 = a; h2 < b && h2 < 24; h2++) out[h2] = v;
+  }
+  return out;
+}
+
+// The daily sky is the daytime block; daily precip is the max across blocks.
+function daySky(blocks) {
+  var pref = ['12-24', '00-24', '12-18', '06-12'];
+  for (var k = 0; k < pref.length; k++) {
+    for (var i = 0; blocks && i < blocks.length; i++) {
+      if (blocks[i].periodo === pref[k] && blocks[i].value) return blocks[i].value;
+    }
+  }
+  for (var j = 0; blocks && j < blocks.length; j++) if (blocks[j].value) return blocks[j].value;
+  return '';
+}
+function dayMaxProb(blocks) {
+  var mx = 0;
+  for (var i = 0; blocks && i < blocks.length; i++) {
+    var v = pInt(blocks[i].value);
+    if (v > mx) mx = v;
+  }
+  return mx;
+}
+
+function hhmmToday(hhmm) {
+  var p = String(hhmm || '').split(':');
+  var d = new Date();
+  d.setHours(pInt(p[0]), pInt(p[1]), 0, 0);
+  return Math.floor(d.getTime() / 1000);
+}
+
+function shapeAEMET(daily, hourly, loc, isMetric) {
+  var dd = daily[0].prediccion.dia;      // daily blocks per day
+  var hd = hourly[0].prediccion.dia;     // hourly arrays per day
+  var now = new Date();
+  var nowHour = now.getHours();
+  var unixNow = Math.floor(Date.now() / 1000);
+
+  // Next 8 hours across today (from the current hour) and tomorrow.
+  var hours = [];
+  for (var di = 0; di < hd.length && hours.length < HOURS_N; di++) {
+    var day = hd[di];
+    var temp = byHour(day.temperatura);
+    var sky = byHour(day.estadoCielo);
+    var pops = popByHour(day.probPrecipitacion);
+    for (var h = 0; h < 24 && hours.length < HOURS_N; h++) {
+      var pp = ('0' + h).slice(-2);
+      if (temp[pp] === undefined) continue;
+      if (di === 0 && h < nowHour) continue;
+      hours.push({ temp: N.i8(toF(pInt(temp[pp]), isMetric)),
+                   code: N.aemetToCode(sky[pp] || ''), pop: N.u8(pops[h]) });
+    }
+  }
+  while (hours.length < HOURS_N) hours.push({ temp: 0, code: 1, pop: 0 });
+
+  // Six days from today.
+  var days = [];
+  for (var m = 0; m < DAYS_N; m++) {
+    if (m < dd.length) {
+      var da = dd[m];
+      var t = da.temperatura || {};
+      days.push({ min: N.i8(toF(pInt(t.minima), isMetric)),
+                  max: N.i8(toF(pInt(t.maxima), isMetric)),
+                  code: N.aemetToCode(daySky(da.estadoCielo)),
+                  pop: N.u8(dayMaxProb(da.probPrecipitacion)) });
+    } else {
+      days.push({ min: 0, max: 0, code: 1, pop: 0 });
+    }
+  }
+
+  var hum = byHour(hd[0].humedadRelativa);
+
+  return {
+    ok: 1,
+    name: loc.name || (daily[0].nombre) || 'Spain',
+    temp: hours[0].temp,
+    tmin: days[0].min,
+    tmax: days[0].max,
+    code: hours[0].code,
+    humidity: N.u8(pInt(hum[('0' + nowHour).slice(-2)])),
+    pop: hours[0].pop,
+    sunrise: hhmmToday(hd[0].orto),
+    sunset: hhmmToday(hd[0].ocaso),
+    is_metric: isMetric ? 1 : 0,
+    hours: hours,
+    days: days,
+    updated: unixNow,
+  };
+}
+
+module.exports = { fetchOpenMeteo: fetchOpenMeteo, fetchAEMET: fetchAEMET };

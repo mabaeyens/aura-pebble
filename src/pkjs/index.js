@@ -86,18 +86,30 @@ function sendChain(frames, i) {
     function () { sendChain(frames, i + 1); });   // skip a dropped frame; next refresh heals it
 }
 
+function openMeteo(loc, metric) {
+  providers.fetchOpenMeteo(loc, metric, sendWeather, function (err) {
+    console.log('Aura Weather: open-meteo failed: ' + err);
+    Pebble.sendAppMessage({ WX_OK: 0 });            // keep the persisted forecast on screen
+  });
+}
+
+// Route to AEMET only for a Spanish location when the user enabled it and gave a
+// key; otherwise Open-Meteo. AEMET failure (429, bad key) falls back to
+// Open-Meteo rather than blanking the screen.
 function refresh() {
   var s = readSettings();
   var metric = isMetric(s);
   resolveLocation(s, function (loc) {
-    // A Spanish location carries its INE for the AEMET path (wired in step 5).
     loc.ine = geo.nearestINE(loc.lat, loc.lon);
-    providers.fetchOpenMeteo(loc, metric, function (w) {
-      sendWeather(w);
-    }, function (err) {
-      console.log('Aura Weather: fetch failed: ' + err);
-      Pebble.sendAppMessage({ WX_OK: 0 });          // keep the persisted forecast on screen
-    });
+    if (loc.ine && s.USE_AEMET && s.AEMET_KEY) {
+      loc.aemetKey = s.AEMET_KEY;
+      providers.fetchAEMET(loc, metric, sendWeather, function (err) {
+        console.log('Aura Weather: aemet failed (' + err + '), using open-meteo');
+        openMeteo(loc, metric);
+      });
+    } else {
+      openMeteo(loc, metric);
+    }
   });
 }
 
