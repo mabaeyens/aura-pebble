@@ -1,16 +1,20 @@
 #include <pebble.h>
 #include "weather.h"
 #include "sky.h"
+#include "message_keys.auto.h"
 
 // Aura Weather - a standalone weather watchapp for the Pebble Time 2.
-// Step 1: the scaffold, the signature hero screen and the sun-path maths, fed by
-// hard-coded data so the look can be proven on the emulator before any phone
-// bridge exists (docs/00 build order, step 1). UP/DOWN page the three screens.
+// Step 2: the live Open-Meteo bridge. The phone (src/pkjs) fetches, normalises
+// and ships the forecast in framed AppMessages; this side fills the struct,
+// persists it, and renders. SELECT requests a refresh. UP/DOWN page the three
+// screens; the hero (step 1) draws the procedural sun over the sky.
 
 #define SCREEN_HERO   0
 #define SCREEN_HOURLY 1
 #define SCREEN_DAILY  2
 #define SCREEN_COUNT  3
+
+#define PKEY_WEATHER 1   // persist slot for the whole Weather struct
 
 static Window    *s_window;
 static Layer     *s_canvas;
@@ -22,7 +26,9 @@ static GFont s_font_small;  // staleness note
 static GFont s_font_wx;     // condition glyph, hero size
 static GFont s_font_wx_sm;  // condition glyph, list size
 
-static Weather s_wx;        // the single in-memory forecast (hard-coded in step 1)
+static Weather s_wx;        // the single in-memory forecast (from the phone / persist)
+
+static void request_refresh(void);
 
 // ---- colour + glyph helpers (weather.h) ------------------------------------
 
@@ -147,7 +153,7 @@ static void down_click(ClickRecognizerRef r, void *ctx) {
   layer_mark_dirty(s_canvas);
 }
 static void select_click(ClickRecognizerRef r, void *ctx) {
-  // Step 2 will send a "refresh now" AppMessage here; for now just redraw.
+  request_refresh();
   layer_mark_dirty(s_canvas);
 }
 static void click_config(void *ctx) {
@@ -160,28 +166,94 @@ static void tick_handler(struct tm *t, TimeUnits units) {
   if (s_screen == SCREEN_HERO) layer_mark_dirty(s_canvas);   // the sun/moon moves
 }
 
-// ---- demo data (step 1 only) -----------------------------------------------
+// ---- persistence + first-run default ---------------------------------------
 
-static void seed_demo_weather(void) {
+static void persist_save(void) {
+  persist_write_data(PKEY_WEATHER, &s_wx, sizeof(s_wx));
+}
+
+// A sensible first-run state so the signature shows before any phone data:
+// today's default sun times draw the arc, updated == 0 reads as "no data".
+static void seed_default(void) {
   memset(&s_wx, 0, sizeof(s_wx));
-  strncpy(s_wx.name, "Madrid", sizeof(s_wx.name) - 1);
-  s_wx.temp = 22; s_wx.tmin = 14; s_wx.tmax = 27;
-  s_wx.code = WX_FEW; s_wx.humidity = 45; s_wx.pop = 10;
-  s_wx.is_metric = 1; s_wx.updated = time(NULL);
-
-  // Sunrise 07:15, sunset 21:05 local today, so the arc is meaningful on launch.
+  strncpy(s_wx.name, "Aura", sizeof(s_wx.name) - 1);
+  s_wx.code = WX_FEW; s_wx.is_metric = 1; s_wx.updated = 0;
   time_t now = time(NULL);
   struct tm lt = *localtime(&now);
-  lt.tm_hour = 7; lt.tm_min = 15; lt.tm_sec = 0; s_wx.sunrise = mktime(&lt);
-  lt.tm_hour = 21; lt.tm_min = 5;                s_wx.sunset  = mktime(&lt);
+  lt.tm_hour = 7;  lt.tm_min = 0; lt.tm_sec = 0; s_wx.sunrise = mktime(&lt);
+  lt.tm_hour = 21; lt.tm_min = 0;                s_wx.sunset  = mktime(&lt);
+}
 
-  for (int i = 0; i < HOURS_N; i++) {
-    s_wx.hours[i] = (HourSlot){ .temp = 20 + i, .code = (i % 3 == 0) ? WX_RAIN : WX_FEW,
-                                .pop = (i % 3 == 0) ? 40 : 10 };
+static void load_weather(void) {
+  if (persist_exists(PKEY_WEATHER) &&
+      persist_get_size(PKEY_WEATHER) == (int)sizeof(s_wx)) {
+    persist_read_data(PKEY_WEATHER, &s_wx, sizeof(s_wx));
+  } else {
+    seed_default();
   }
-  for (int i = 0; i < DAYS_N; i++) {
-    s_wx.days[i] = (DaySlot){ .min = 12 + i, .max = 24 + i,
-                              .code = (i % 2) ? WX_CLOUDY : WX_CLEAR, .pop = i * 8 };
+}
+
+// ---- AppMessage inbox ------------------------------------------------------
+
+static void inbox_received(DictionaryIterator *iter, void *context) {
+  Tuple *t;
+
+  // Current / handshake message.
+  if ((t = dict_find(iter, MESSAGE_KEY_WX_OK))) {
+    if (t->value->int32 == 0) return;   // provider error: keep the persisted struct
+    Tuple *tp;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_NAME)))
+      strncpy(s_wx.name, tp->value->cstring, sizeof(s_wx.name) - 1);
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_TEMP)))    s_wx.temp     = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_TMIN)))    s_wx.tmin     = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_TMAX)))    s_wx.tmax     = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_CODE)))    s_wx.code     = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_HUM)))     s_wx.humidity = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_POP)))     s_wx.pop      = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_SUNRISE))) s_wx.sunrise  = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_SUNSET)))  s_wx.sunset   = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_UNITS)))   s_wx.is_metric = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_UPDATED))) s_wx.updated  = tp->value->int32;
+    persist_save();
+    layer_mark_dirty(s_canvas);
+    return;
+  }
+
+  // Hourly frame: one slot per message, keyed by index.
+  if ((t = dict_find(iter, MESSAGE_KEY_H_IDX))) {
+    int i = t->value->int32;
+    if (i >= 0 && i < HOURS_N) {
+      Tuple *tp;
+      if ((tp = dict_find(iter, MESSAGE_KEY_H_TEMP))) s_wx.hours[i].temp = tp->value->int32;
+      if ((tp = dict_find(iter, MESSAGE_KEY_H_CODE))) s_wx.hours[i].code = tp->value->int32;
+      if ((tp = dict_find(iter, MESSAGE_KEY_H_POP)))  s_wx.hours[i].pop  = tp->value->int32;
+    }
+    layer_mark_dirty(s_canvas);
+    return;
+  }
+
+  // Daily frame: one slot per message. Persist once the last day lands.
+  if ((t = dict_find(iter, MESSAGE_KEY_D_IDX))) {
+    int i = t->value->int32;
+    if (i >= 0 && i < DAYS_N) {
+      Tuple *tp;
+      if ((tp = dict_find(iter, MESSAGE_KEY_D_MIN)))  s_wx.days[i].min  = tp->value->int32;
+      if ((tp = dict_find(iter, MESSAGE_KEY_D_MAX)))  s_wx.days[i].max  = tp->value->int32;
+      if ((tp = dict_find(iter, MESSAGE_KEY_D_CODE))) s_wx.days[i].code = tp->value->int32;
+      if ((tp = dict_find(iter, MESSAGE_KEY_D_POP)))  s_wx.days[i].pop  = tp->value->int32;
+    }
+    if (i == DAYS_N - 1) persist_save();
+    layer_mark_dirty(s_canvas);
+    return;
+  }
+}
+
+// Ask the phone for a fresh forecast (SELECT, and on launch the phone self-starts).
+static void request_refresh(void) {
+  DictionaryIterator *out;
+  if (app_message_outbox_begin(&out) == APP_MSG_OK) {
+    dict_write_uint8(out, MESSAGE_KEY_REFRESH, 1);
+    app_message_outbox_send();
   }
 }
 
@@ -206,7 +278,7 @@ static void init(void) {
   s_font_wx     = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_WI_30));
   s_font_wx_sm  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_WI_20));
 
-  seed_demo_weather();
+  load_weather();
 
   s_window = window_create();
   window_set_background_color(s_window, GColorBlack);
@@ -217,6 +289,9 @@ static void init(void) {
   window_stack_push(s_window, true);
 
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
+
+  app_message_register_inbox_received(inbox_received);
+  app_message_open(512, 64);   // inbox holds the current frame (name + ints) comfortably
 }
 
 static void deinit(void) {
