@@ -1,0 +1,99 @@
+{
+  "name": "aura-weather",
+  "author": "Miguel Angel Baeyens",
+  "version": "0.1.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Aura Weather",
+    "uuid": "fce83b9e-37bc-4714-9125-840d83a72d64",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "capabilities": [
+      "location"
+    ],
+    "targetPlatforms": [
+      "aplite",
+      "basalt",
+      "chalk",
+      "diorite",
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": false
+    },
+    "messageKeys": [
+      "WX_OK",
+      "WX_NAME",
+      "WX_TEMP",
+      "WX_TMIN",
+      "WX_TMAX",
+      "WX_CODE",
+      "WX_HUM",
+      "WX_POP",
+      "WX_SUNRISE",
+      "WX_SUNSET",
+      "WX_UNITS",
+      "WX_UPDATED",
+      "H_IDX",
+      "H_TEMP",
+      "H_CODE",
+      "H_POP",
+      "D_IDX",
+      "D_MIN",
+      "D_MAX",
+      "D_CODE",
+      "D_POP",
+      "UNITS",
+      "LOCMODE",
+      "LAT",
+      "LON",
+      "INE",
+      "AEMET_KEY",
+      "USE_AEMET",
+      "REFRESH"
+    ],
+    "resources": {
+      "media": [
+        {
+          "type": "bitmap",
+          "name": "IMG_MENU_ICON",
+          "file": "images/menu-icon.png"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_34",
+          "file": "fonts/LiberationSans-Bold.ttf",
+          "characterRegex": "[-0-9°]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_18",
+          "file": "fonts/LiberationSans-Bold.ttf",
+          "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°%/,.: ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_14",
+          "file": "fonts/LiberationSans-Bold.ttf",
+          "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°%/,.: ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_WI_30",
+          "file": "fonts/WeatherIcons-Regular.ttf",
+          "characterRegex": "[]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_WI_20",
+          "file": "fonts/WeatherIcons-Regular.ttf",
+          "characterRegex": "[]"
+        }
+      ]
+    }
+  }
+}
