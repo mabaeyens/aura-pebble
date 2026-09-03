@@ -29,6 +29,8 @@
 
 ## Pending
 
+- Aura Weather, two on-device checks the headless emulator could not cover. (1) The in-page Clay city typeahead exercises Clay's DOM internals (`getItemByMessageKey(...).$manipulatorTarget`, `.set()`) in the config browser, which I can't drive here: open settings, search a city, confirm result rows appear and tapping one fills city/lat/lon and flips GPS off. Manual lat/lon and GPS are already verified. (2) The live AEMET two-call with a real key (the parser is verified offline against a synthetic payload; the Open-Meteo fallback makes a live bug non-fatal). Sideload with `pebble install --cloudpebble`.
+- Aura Weather is not in the top-level README table and not published. Adding it there and shipping to the appstore is a later release decision.
 - Publish aura-analog and aura-digital when each has a proper production build and its own store screenshots. Analog is bumped to 1.3.0 in source but has no GitHub release yet; digital has neither. Neither is close to release. Essential is the current focus.
 
 ## Notes
