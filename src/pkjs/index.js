@@ -1,18 +1,24 @@
-// Aura Weather - phone-side bridge (docs/01-data-bridge.md).
-// Step 2: the keyless Open-Meteo path end to end. Resolve a location (GPS, else
-// a saved/seed fallback), fetch, normalise, and ship the forecast to the watch
-// in framed AppMessages. Clay settings, worldwide search and the AEMET path land
-// in later steps; this file is written so those only add, never rewrite.
+// Aura Weather - phone-side bridge (docs/01, docs/02).
+// Resolves a location (manual/city coords, else GPS, else a seed), fetches from
+// Open-Meteo, normalises, and ships the forecast to the watch in framed
+// AppMessages. Clay drives units, location and the AEMET fields; a Spanish pick
+// is resolved to its INE here so step 5 can route it to AEMET. Written so each
+// later step only adds.
 
+var Clay = require('pebble-clay');
+var clayConfig = require('./config');
 var providers = require('./providers');
+var geo = require('./geo');
+
+var clay = new Clay(clayConfig.config, clayConfig.customFn, { autoHandleEvents: false });
 
 var HOURS_N = 8;
 var DAYS_N = 6;
 var REFRESH_MS = 30 * 60 * 1000;
-var SEED = { name: 'Madrid', lat: 40.4168, lon: -3.7038 };   // fallback if GPS denied
+var SEED = { name: 'Madrid', lat: 40.4168, lon: -3.7038 };   // fallback if nothing else resolves
 
-// Units default follows the phone locale until the user sets the Clay toggle
-// (step 4): metric everywhere except the handful of imperial-first locales.
+// Units default follows the phone locale until the user sets the Clay toggle:
+// metric everywhere except the handful of imperial-first locales.
 function defaultMetric() {
   try {
     var lang = (navigator.language || 'en').toLowerCase();
@@ -23,47 +29,46 @@ function defaultMetric() {
 }
 
 function readSettings() {
-  var s = {};
-  try { s = JSON.parse(localStorage.getItem('clay-settings')) || {}; } catch (e) { s = {}; }
-  return s;
+  try { return JSON.parse(localStorage.getItem('clay-settings')) || {}; }
+  catch (e) { return {}; }
 }
 
 function isMetric(s) {
-  if (s && (s.UNITS === 'f' || s.UNITS === 'F' || s.UNITS === 0)) return false;
-  if (s && (s.UNITS === 'c' || s.UNITS === 'C' || s.UNITS === 1)) return true;
-  return defaultMetric();
+  if (s.UNITS === 'f') return false;
+  if (s.UNITS === 'c') return true;
+  return defaultMetric();               // 'auto' or unset
 }
 
-// Where to fetch: GPS if the settings ask for it (or nothing is saved yet),
-// otherwise the manually entered / last-picked location, otherwise the seed.
+// Location precedence (docs/02): the picked city / manual coordinates win when
+// GPS is switched off (picking a city switches it off); otherwise GPS, then the
+// seed. GPS defaults on so a fresh install works before any city is chosen.
 function resolveLocation(s, cb) {
-  var manual = null;
-  if (s && s.LAT && s.LON) {
-    manual = { name: s.CITY || SEED.name, lat: parseFloat(s.LAT), lon: parseFloat(s.LON) };
-  }
-  var wantGPS = !s || !s.LOCMODE || s.LOCMODE === 'gps' || !manual;
-  if (!wantGPS && manual) { cb(manual); return; }
+  var lat = parseFloat(s.LAT), lon = parseFloat(s.LON);
+  var hasCoords = !isNaN(lat) && !isNaN(lon);
+  var city = hasCoords ? { name: s.CITY || SEED.name, lat: lat, lon: lon } : null;
+  var useGPS = s.USE_GPS === undefined ? true : !!s.USE_GPS;
 
-  navigator.geolocation.getCurrentPosition(
-    function (pos) {
-      cb({ name: (manual && manual.name) || 'My location',
-           lat: pos.coords.latitude, lon: pos.coords.longitude });
-    },
-    function () { cb(manual || SEED); },
-    { timeout: 12000, maximumAge: 600000 }
-  );
+  if (!useGPS && city) { cb(city); return; }
+
+  if (useGPS) {
+    navigator.geolocation.getCurrentPosition(
+      function (pos) { cb({ name: 'My location', lat: pos.coords.latitude, lon: pos.coords.longitude }); },
+      function () { cb(city || SEED); },
+      { timeout: 12000, maximumAge: 600000 });
+    return;
+  }
+  cb(city || SEED);
 }
 
 // Chain the forecast to the watch: one current message, then the 8 hourly and 6
-// daily frames, each sent only after the previous one's outbox_sent fires, so
-// PebbleKit JS never drops overlapping sends.
+// daily frames, each sent only after the previous outbox_sent, so PebbleKit JS
+// never drops overlapping sends.
 function sendWeather(w) {
-  var frames = [];
-  frames.push({
+  var frames = [{
     WX_OK: 1, WX_NAME: w.name, WX_TEMP: w.temp, WX_TMIN: w.tmin, WX_TMAX: w.tmax,
     WX_CODE: w.code, WX_HUM: w.humidity, WX_POP: w.pop,
     WX_SUNRISE: w.sunrise, WX_SUNSET: w.sunset, WX_UNITS: w.is_metric, WX_UPDATED: w.updated,
-  });
+  }];
   for (var i = 0; i < HOURS_N; i++) {
     frames.push({ H_IDX: i, H_TEMP: w.hours[i].temp, H_CODE: w.hours[i].code, H_POP: w.hours[i].pop });
   }
@@ -78,14 +83,15 @@ function sendChain(frames, i) {
   if (i >= frames.length) return;
   Pebble.sendAppMessage(frames[i],
     function () { sendChain(frames, i + 1); },
-    function () { sendChain(frames, i + 1); }   // skip a dropped frame; next refresh heals it
-  );
+    function () { sendChain(frames, i + 1); });   // skip a dropped frame; next refresh heals it
 }
 
 function refresh() {
   var s = readSettings();
   var metric = isMetric(s);
   resolveLocation(s, function (loc) {
+    // A Spanish location carries its INE for the AEMET path (wired in step 5).
+    loc.ine = geo.nearestINE(loc.lat, loc.lon);
     providers.fetchOpenMeteo(loc, metric, function (w) {
       sendWeather(w);
     }, function (err) {
@@ -104,4 +110,14 @@ Pebble.addEventListener('ready', function () {
 // The watch's SELECT button sends REFRESH; refetch on demand.
 Pebble.addEventListener('appmessage', function (e) {
   if (e.payload && e.payload.REFRESH !== undefined) refresh();
+});
+
+// Clay config lifecycle (we handle it so we can refresh right after a save).
+Pebble.addEventListener('showConfiguration', function () {
+  Pebble.openURL(clay.generateUrl());
+});
+Pebble.addEventListener('webviewclosed', function (e) {
+  if (!e || !e.response) return;
+  clay.getSettings(e.response);    // persists to localStorage under 'clay-settings'
+  refresh();
 });
