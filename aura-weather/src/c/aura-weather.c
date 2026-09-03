@@ -123,22 +123,99 @@ static void draw_hero(GContext *ctx, GRect b) {
   }
 }
 
-// ---- placeholder forecast screens (real rows land in step 3) ---------------
+// A thin precip bar along the bottom of a row, width proportional to pop, shown
+// only when rain is worth a glance (>= 20%). One drawn bar, never a chart.
+static void draw_pop_bar(GContext *ctx, GRect row, uint8_t pop) {
+  if (pop < 20) return;
+  int w = row.size.w * pop / 100;
+  graphics_context_set_fill_color(ctx, GColorPictonBlue);
+  graphics_fill_rect(ctx, GRect(row.origin.x, row.origin.y + row.size.h - 2, w, 2),
+                     0, GCornerNone);
+}
 
-static void draw_placeholder(GContext *ctx, GRect b, const char *title) {
+// ---- hourly screen: next 8 hours -------------------------------------------
+
+static void draw_hourly(GContext *ctx, GRect b) {
   graphics_context_set_fill_color(ctx, GColorBlack);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
-  draw_text_in(ctx, title, s_font_text,
-               GRect(b.origin.x, b.origin.y + b.size.h / 2 - 14, b.size.w, 28),
-               GColorWhite, GTextAlignmentCenter);
+
+  time_t now = time(NULL);
+  int now_hour = localtime(&now)->tm_hour;
+  bool h24 = clock_is_24h_style();
+  int row_h = b.size.h / HOURS_N;
+  char buf[8];
+
+  for (int i = 0; i < HOURS_N; i++) {
+    GRect row = GRect(b.origin.x, b.origin.y + i * row_h, b.size.w, row_h);
+    HourSlot *hs = &s_wx.hours[i];
+    int hour = (now_hour + i) % 24;
+
+    // Hour label, 12/24h per the watch's system setting.
+    if (h24)               snprintf(buf, sizeof(buf), "%02d", hour);
+    else                   snprintf(buf, sizeof(buf), "%d%s", (hour % 12) ? (hour % 12) : 12,
+                                    hour < 12 ? "a" : "p");
+    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x + 6, row.origin.y, 46, row_h),
+                 GColorWhite, GTextAlignmentLeft);
+
+    // Condition glyph, night variant if that hour is after sunset / before sunrise.
+    bool night = is_night_at(now + i * 3600);
+    draw_text_in(ctx, wx_glyph(hs->code, night), s_font_wx_sm,
+                 GRect(row.origin.x + row.size.w / 2 - 24, row.origin.y - 2, 48, row_h),
+                 GColorWhite, GTextAlignmentCenter);
+
+    // Temperature, tinted by the ramp.
+    snprintf(buf, sizeof(buf), "%d\xC2\xB0", hs->temp);
+    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x, row.origin.y, row.size.w - 8, row_h),
+                 temp_color(hs->temp, s_wx.is_metric), GTextAlignmentRight);
+
+    draw_pop_bar(ctx, row, hs->pop);
+  }
+}
+
+// ---- daily screen: next 6 days ---------------------------------------------
+
+static void draw_daily(GContext *ctx, GRect b) {
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+
+  time_t now = time(NULL);
+  int row_h = b.size.h / DAYS_N;
+  char buf[8];
+
+  for (int i = 0; i < DAYS_N; i++) {
+    GRect row = GRect(b.origin.x, b.origin.y + i * row_h, b.size.w, row_h);
+    DaySlot *ds = &s_wx.days[i];
+
+    // Weekday, three letters, derived from today plus the slot index.
+    time_t day = now + i * 86400;
+    strftime(buf, sizeof(buf), "%a", localtime(&day));
+    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x + 6, row.origin.y, 52, row_h),
+                 GColorWhite, GTextAlignmentLeft);
+
+    // Condition glyph.
+    draw_text_in(ctx, wx_glyph(ds->code, false), s_font_wx_sm,
+                 GRect(row.origin.x + row.size.w / 2 - 20, row.origin.y - 2, 40, row_h),
+                 GColorWhite, GTextAlignmentCenter);
+
+    // Max at the right edge, min just left of it, each tinted by the ramp so a
+    // cold day reads blue and a hot day red without any label.
+    snprintf(buf, sizeof(buf), "%d\xC2\xB0", ds->max);
+    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x, row.origin.y, row.size.w - 8, row_h),
+                 temp_color(ds->max, s_wx.is_metric), GTextAlignmentRight);
+    snprintf(buf, sizeof(buf), "%d\xC2\xB0", ds->min);
+    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x, row.origin.y, row.size.w - 52, row_h),
+                 temp_color(ds->min, s_wx.is_metric), GTextAlignmentRight);
+
+    draw_pop_bar(ctx, row, ds->pop);
+  }
 }
 
 static void canvas_update(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   switch (s_screen) {
     case SCREEN_HERO:   draw_hero(ctx, b); break;
-    case SCREEN_HOURLY: draw_placeholder(ctx, b, "Hourly"); break;
-    case SCREEN_DAILY:  draw_placeholder(ctx, b, "Daily"); break;
+    case SCREEN_HOURLY: draw_hourly(ctx, b); break;
+    case SCREEN_DAILY:  draw_daily(ctx, b); break;
   }
 }
 
