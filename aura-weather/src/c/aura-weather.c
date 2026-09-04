@@ -21,10 +21,17 @@ enum {
   CARD_WIND,
   CARD_UV,
   CARD_DETAILS,
+  CARD_BULLETIN,
   CARD_N
 };
 
-#define PKEY_WEATHER 1   // persist slot for the whole Weather struct
+#define PKEY_WEATHER  1   // persist slot for the whole Weather struct
+#define PKEY_BULLETIN 2   // the bulletin text (kept out of the struct: persist caps at 256 B)
+
+// The generated / official forecast prose. Lives outside the persisted Weather
+// struct because that struct plus a ~256 B string would exceed persist's 256 B
+// per-key limit; it gets its own key and its own frame.
+static char s_bulletin[256];
 
 static Window    *s_window;
 static Layer     *s_canvas;
@@ -592,17 +599,35 @@ static void draw_details(GContext *ctx, GRect b) {
   detail_row(ctx, b, y + rh * 3, "Gust", buf, wind_color(kmh));
 }
 
+// ---- bulletin card: Aura's plain-language forecast --------------------------
+// Aura's own summary worldwide (generated on the phone from the numbers), the
+// official AEMET boletin in Spain. The watch only word-wraps the text it is sent.
+
+static void draw_bulletin(GContext *ctx, GRect b) {
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+  draw_text_in(ctx, "Forecast", s_font_text,
+               GRect(b.origin.x, b.origin.y + 8, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+
+  // A left-aligned, word-wrapped block under the title. Font 14 fits ~200 chars
+  // in the body height; longer prose (a full AEMET boletin) is capped on phone.
+  GRect body = GRect(b.origin.x + 12, b.origin.y + 40, b.size.w - 24, b.size.h - 48);
+  const char *s = s_bulletin[0] ? s_bulletin : "No forecast yet.";
+  draw_text_in(ctx, s, s_font_small, body, GColorWhite, GTextAlignmentLeft);
+}
+
 static void canvas_update(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   switch (s_card) {
-    case CARD_HERO:    draw_hero(ctx, b);    break;
-    case CARD_AVISO:   draw_aviso(ctx, b);   break;
-    case CARD_HOURLY:  draw_hourly(ctx, b);  break;
-    case CARD_DAILY:   draw_daily(ctx, b);   break;
-    case CARD_SUNMOON: draw_sunmoon(ctx, b); break;
-    case CARD_WIND:    draw_wind(ctx, b);    break;
-    case CARD_UV:      draw_uv(ctx, b);      break;
-    case CARD_DETAILS: draw_details(ctx, b); break;
+    case CARD_HERO:     draw_hero(ctx, b);     break;
+    case CARD_AVISO:    draw_aviso(ctx, b);    break;
+    case CARD_HOURLY:   draw_hourly(ctx, b);   break;
+    case CARD_DAILY:    draw_daily(ctx, b);    break;
+    case CARD_SUNMOON:  draw_sunmoon(ctx, b);  break;
+    case CARD_WIND:     draw_wind(ctx, b);     break;
+    case CARD_UV:       draw_uv(ctx, b);       break;
+    case CARD_DETAILS:  draw_details(ctx, b);  break;
+    case CARD_BULLETIN: draw_bulletin(ctx, b); break;
   }
 }
 
@@ -612,9 +637,10 @@ static void canvas_update(Layer *layer, GContext *ctx) {
 // warning, the UV ring needs a day with some sun. The rest are always present.
 static bool card_visible(int c) {
   switch (c) {
-    case CARD_AVISO: return s_wx.alert_level > 0;
-    case CARD_UV:    return s_wx.uv_peak > 0;
-    default:         return true;
+    case CARD_AVISO:    return s_wx.alert_level > 0;
+    case CARD_UV:       return s_wx.uv_peak > 0;
+    case CARD_BULLETIN: return s_bulletin[0] != '\0';
+    default:            return true;
   }
 }
 
@@ -670,12 +696,24 @@ static void load_weather(void) {
   } else {
     seed_default();
   }
+  if (persist_exists(PKEY_BULLETIN)) {
+    persist_read_string(PKEY_BULLETIN, s_bulletin, sizeof(s_bulletin));
+  }
 }
 
 // ---- AppMessage inbox ------------------------------------------------------
 
 static void inbox_received(DictionaryIterator *iter, void *context) {
   Tuple *t;
+
+  // Bulletin frame (its own message, sent last): the forecast prose.
+  if ((t = dict_find(iter, MESSAGE_KEY_WX_BULL))) {
+    strncpy(s_bulletin, t->value->cstring, sizeof(s_bulletin) - 1);
+    s_bulletin[sizeof(s_bulletin) - 1] = '\0';
+    persist_write_string(PKEY_BULLETIN, s_bulletin);
+    layer_mark_dirty(s_canvas);
+    return;
+  }
 
   // Current / handshake message.
   if ((t = dict_find(iter, MESSAGE_KEY_WX_OK))) {

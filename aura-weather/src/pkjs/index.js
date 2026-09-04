@@ -83,6 +83,8 @@ function sendWeather(w) {
     frames.push({ D_IDX: d, D_MIN: w.days[d].min, D_MAX: w.days[d].max,
                   D_CODE: w.days[d].code, D_POP: w.days[d].pop });
   }
+  // The bulletin rides its own frame, sent last (it is the largest payload).
+  frames.push({ WX_BULL: w.bulletin || '' });
   sendChain(frames, 0);
 }
 
