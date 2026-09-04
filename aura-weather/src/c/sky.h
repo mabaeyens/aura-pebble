@@ -19,4 +19,16 @@ SunState sun_compute(time_t now, time_t sunrise, time_t sunset, GRect sky);
 
 // Fill `sky` with the day/night gradient chosen by the sun's altitude and draw
 // the disc (and, at night, a few static stars). Everything is bounds-relative.
-void sky_draw(GContext *ctx, GRect sky, SunState s);
+// `code` is the normalised condition (see weather.h): clear/few clouds draw the
+// full vivid sky and disc, cloudy mutes the gradient toward grey but keeps the
+// disc, and overcast-or-wetter flattens the sky to grey and hides the disc and
+// stars, so the hero no longer shows a clear sun on a cloudy day.
+void sky_draw(GContext *ctx, GRect sky, SunState s, uint8_t code);
+
+// Draw the foreground landscape over the sky: a distant ridge, a snow-capped
+// mountain range, green hills, and two trees. Each tree casts a ground shadow
+// whose direction flips with the sun's horizontal position and whose length
+// grows as the sun sinks (a port of AuraSky.drawScenery in the phone app).
+// Drawn AFTER sky_draw so the mountains occlude a low sun. Greyed under
+// overcast and silhouetted at night; shadows are cast only in daylight.
+void scene_draw(GContext *ctx, GRect r, SunState s, uint8_t code);
