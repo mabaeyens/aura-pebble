@@ -11,6 +11,7 @@ var clayConfig = require('./config');
 // a branded header, wide rounded section cards, aligned labels, and an accent
 // Save button in Aura's sky colours.
 function clayStyle() {
+  var clayConfig = this;
   var css = [
     'body{background:#0e1116;color:#e6edf3;}',
     '#aura-hd{padding:26px 16px 20px;text-align:center;',
@@ -38,6 +39,84 @@ function clayStyle() {
     hd.id = 'aura-hd';
     hd.innerHTML = '<div class="wm">AURA</div><div class="sub">Essential watchface</div>';
     document.body.insertBefore(hd, document.body.firstChild);
+  });
+
+  // Worldwide city typeahead under the "Search a city" box. A declarative Clay
+  // config cannot do this, so it is wired here (this whole function is injected
+  // into the config page as a string, so it must stay self-contained: no
+  // require, no closures over module scope). Debounced query against the keyless
+  // Open-Meteo geocoder; a tap fills CITY / LAT / LON and turns GPS off.
+  clayConfig.on(clayConfig.EVENTS.AFTER_RENDER, function () {
+    var searchItem = clayConfig.getItemByMessageKey('SEARCH');
+    if (!searchItem || !searchItem.$element) { return; }
+
+    var box = document.createElement('div');
+    box.style.margin = '0 0 6px 0';
+    box.style.background = '#171d27';
+    searchItem.$element.get(0).appendChild(box);
+
+    var timer = null;
+
+    function setVal(key, value) {
+      var item = clayConfig.getItemByMessageKey(key);
+      if (item) { try { item.set(value); } catch (e) {} }
+    }
+
+    function pick(r) {
+      setVal('CITY', r.name);
+      setVal('LAT', String(r.lat));
+      setVal('LON', String(r.lon));
+      setVal('USE_GPS', false);   // picking a city means "use this city"
+      box.innerHTML = '';
+    }
+
+    function render(rows) {
+      box.innerHTML = '';
+      for (var i = 0; i < rows.length; i++) {
+        (function (r) {
+          var row = document.createElement('div');
+          row.textContent = r.label;
+          row.style.padding = '12px 18px';
+          row.style.borderBottom = '1px solid #2a3340';
+          row.style.color = '#e6edf3';
+          row.style.cursor = 'pointer';
+          row.onclick = function () { pick(r); };
+          box.appendChild(row);
+        })(rows[i]);
+      }
+    }
+
+    function search(q) {
+      var url = 'https://geocoding-api.open-meteo.com/v1/search?name=' +
+        encodeURIComponent(q) + '&count=8&language=en&format=json';
+      var req = new XMLHttpRequest();
+      req.open('GET', url, true);
+      req.onload = function () {
+        if (req.status < 200 || req.status >= 300) { render([]); return; }
+        var rows = [];
+        try {
+          var j = JSON.parse(req.responseText);
+          var res = j.results || [];
+          for (var i = 0; i < res.length; i++) {
+            var x = res[i];
+            var parts = [x.name];
+            if (x.admin1) { parts.push(x.admin1); }
+            if (x.country) { parts.push(x.country); }
+            rows.push({ name: x.name, lat: x.latitude, lon: x.longitude, label: parts.join(', ') });
+          }
+        } catch (e) {}
+        render(rows);
+      };
+      req.onerror = function () { render([]); };
+      req.send();
+    }
+
+    searchItem.$manipulatorTarget.on('keyup', function () {
+      if (timer) { clearTimeout(timer); }
+      var q = String(searchItem.get() || '').trim();
+      if (q.length < 2) { box.innerHTML = ''; return; }
+      timer = setTimeout(function () { search(q); }, 300);
+    });
   });
 }
 
@@ -75,44 +154,14 @@ function fetchWeather(lat, lon) {
   xhr.send();
 }
 
-// Coordinates for the city picker. Order MUST match CITY_OPTIONS in config.js
-// (index = the option's value).
-var CITIES = [
-  { lat: 40.4168, lon: -3.7038 },   // 0  Madrid
-  { lat: 41.3874, lon: 2.1686 },    // 1  Barcelona
-  { lat: 39.4699, lon: -0.3763 },   // 2  Valencia
-  { lat: 37.3891, lon: -5.9845 },   // 3  Sevilla
-  { lat: 41.6488, lon: -0.8891 },   // 4  Zaragoza
-  { lat: 36.7213, lon: -4.4214 },   // 5  Malaga
-  { lat: 37.9922, lon: -1.1307 },   // 6  Murcia
-  { lat: 39.5696, lon: 2.6502 },    // 7  Palma
-  { lat: 28.1235, lon: -15.4363 },  // 8  Las Palmas
-  { lat: 43.2630, lon: -2.9350 },   // 9  Bilbao
-  { lat: 38.3452, lon: -0.4810 },   // 10 Alicante
-  { lat: 37.8882, lon: -4.7794 },   // 11 Cordoba
-  { lat: 41.6523, lon: -4.7245 },   // 12 Valladolid
-  { lat: 42.2406, lon: -8.7207 },   // 13 Vigo
-  { lat: 37.1773, lon: -3.5986 },   // 14 Granada
-  { lat: 43.3623, lon: -8.4115 },   // 15 A Coruna
-  { lat: 43.4623, lon: -3.8099 },   // 16 Santander
-  { lat: 43.3183, lon: -1.9812 },   // 17 San Sebastian
-  { lat: 28.4636, lon: -16.2518 },  // 18 Santa Cruz de Tenerife
-  { lat: 42.8125, lon: -1.6458 },   // 19 Pamplona
-  { lat: 51.5074, lon: -0.1278 },   // 20 London
-  { lat: 48.8566, lon: 2.3522 },    // 21 Paris
-  { lat: 38.7223, lon: -9.1393 }    // 22 Lisbon
-];
-
 function locateAndFetch() {
   var s = settings();
   var lat = parseFloat(s.LAT), lon = parseFloat(s.LON);
-  if (s.LOCMODE && !isNaN(lat) && !isNaN(lon)) {   // manual coordinates win
+  // USE_GPS defaults on when unset. Off means use the searched city / manual
+  // coordinates, which the typeahead fills into LAT/LON (CITY is display only).
+  var useGps = (s.USE_GPS === undefined) ? true : s.USE_GPS;
+  if (!useGps && !isNaN(lat) && !isNaN(lon)) {
     fetchWeather(lat, lon);
-    return;
-  }
-  var ci = parseInt(s.CITY, 10);                   // then a picked city
-  if (!isNaN(ci) && ci >= 0 && ci < CITIES.length) {
-    fetchWeather(CITIES[ci].lat, CITIES[ci].lon);
     return;
   }
   navigator.geolocation.getCurrentPosition(        // else the phone's GPS

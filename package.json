@@ -1,7 +1,7 @@
 {
   "name": "aura-essential",
   "author": "Miguel Angel Baeyens",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "keywords": ["pebble-app"],
   "private": true,
   "dependencies": {
@@ -39,8 +39,9 @@
       "COMPCOLOR",
       "TIMECOLOR",
       "UNITS",
+      "SEARCH",
       "CITY",
-      "LOCMODE",
+      "USE_GPS",
       "LAT",
       "LON",
       "WX_TEMP",
