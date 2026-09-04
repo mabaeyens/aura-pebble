@@ -32,7 +32,7 @@ Open the settings screen from the Pebble phone app (it is built with [Clay](http
 - **Location**: type a city and pick from the worldwide search results, or turn on GPS, or type a latitude and longitude by hand.
 - **Units**: automatic (following the phone locale), Celsius or Fahrenheit.
 - **AEMET (Spain)**: optionally use AEMET instead of Open-Meteo in Spain, with your own free key.
-- **Cards**: choose which card the app opens on, and toggle any card off to keep the stack to what you want. The hero is always shown and the aviso always appears during a warning.
+- **Cards**: choose which card the app opens on, reorder the cards with up and down arrows, and toggle any card off to keep the stack to what you want. The hero is always shown first and the aviso follows it during a warning.
 
 ## Build
 

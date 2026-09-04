@@ -77,6 +77,7 @@ function cardConfig(s) {
     SHOW_UV: on('SHOW_UV'), SHOW_AIR: on('SHOW_AIR'),
     SHOW_DETAILS: on('SHOW_DETAILS'), SHOW_BULLETIN: on('SHOW_BULLETIN'),
     CARD_BOOT: isNaN(boot) ? 0 : boot,
+    CARD_ORDER: s.CARD_ORDER || '2,3,4,5,6,7,8,9',
   };
 }
 

@@ -42,7 +42,10 @@ static int        s_card = CARD_HERO;
 // Card configuration from Clay (docs/06): which cards the wearer keeps, and the
 // card the app boots on. Hero is always shown; aviso always shows when active
 // (a safety card, not user-hideable). Data gates still apply on top of `show`.
-typedef struct { uint8_t show[CARD_N]; uint8_t boot; } CardCfg;
+// `order` is the wearer's paging sequence: a full permutation of the card
+// indices. Hero sits at 0 and the aviso at 1 (fixed); the eight body cards
+// follow in the chosen order (Phase C reorder). `boot` is the launch card.
+typedef struct { uint8_t show[CARD_N]; uint8_t boot; uint8_t order[CARD_N]; } CardCfg;
 static CardCfg s_cfg;
 
 // The scale cards (wind, UV, air) each open a reference sheet on a long SELECT
@@ -824,11 +827,46 @@ static bool card_visible(int c) {
   }
 }
 
-// Step to the next visible card in `dir` (+1 down, -1 up), wrapping.
+// The natural paging order: hero, aviso, then the body cards in enum order.
+static void set_default_order(void) {
+  for (int i = 0; i < CARD_N; i++) s_cfg.order[i] = i;
+}
+
+// Rebuild s_cfg.order from the phone's CSV of body-card ids (2..9, the eight
+// toggleable cards). Robust to missing, duplicate or bad entries: hero and aviso
+// stay fixed at 0 and 1, the listed body cards follow in order, and any body
+// card the CSV omits is appended in its natural place, so `order` is always a
+// full, valid permutation.
+static void apply_order_csv(const char *csv) {
+  uint8_t tail[CARD_N];
+  bool seen[CARD_N];
+  int n = 0, v = -1;
+  for (int i = 0; i < CARD_N; i++) seen[i] = false;
+  for (const char *p = csv; ; p++) {
+    char ch = *p;
+    if (ch >= '0' && ch <= '9') {
+      v = (v < 0 ? 0 : v) * 10 + (ch - '0');
+    } else {
+      if (v >= 2 && v < CARD_N && !seen[v] && n < CARD_N) { tail[n++] = v; seen[v] = true; }
+      v = -1;
+      if (ch == '\0') break;
+    }
+  }
+  s_cfg.order[0] = CARD_HERO;
+  s_cfg.order[1] = CARD_AVISO;
+  int idx = 2;
+  for (int i = 0; i < n && idx < CARD_N; i++) s_cfg.order[idx++] = tail[i];
+  for (int c = 2; c < CARD_N && idx < CARD_N; c++) if (!seen[c]) s_cfg.order[idx++] = c;
+}
+
+// Step to the next visible card in `dir` (+1 down, -1 up), walking the wearer's
+// paging order and wrapping.
 static void card_step(int dir) {
-  int c = s_card;
-  for (int i = 0; i < CARD_N; i++) {
-    c = (c + dir + CARD_N) % CARD_N;
+  int pos = 0;
+  for (int i = 0; i < CARD_N; i++) if (s_cfg.order[i] == s_card) { pos = i; break; }
+  for (int k = 0; k < CARD_N; k++) {
+    pos = (pos + dir + CARD_N) % CARD_N;
+    int c = s_cfg.order[pos];
     if (card_visible(c)) { s_card = c; break; }
   }
   layer_mark_dirty(s_canvas);
@@ -904,6 +942,7 @@ static void load_weather(void) {
   // Card config: every card shown, boot on the hero, until Clay says otherwise.
   memset(&s_cfg, 1, sizeof(s_cfg));   // all show[] = 1
   s_cfg.boot = CARD_HERO;
+  set_default_order();
   if (persist_exists(PKEY_CARDS) &&
       persist_get_size(PKEY_CARDS) == (int)sizeof(s_cfg)) {
     persist_read_data(PKEY_CARDS, &s_cfg, sizeof(s_cfg));
@@ -931,6 +970,9 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     if ((tp = dict_find(iter, MESSAGE_KEY_CARD_BOOT))) {
       int b = tp->value->int32;
       s_cfg.boot = (b >= 0 && b < CARD_N) ? b : CARD_HERO;
+    }
+    if ((tp = dict_find(iter, MESSAGE_KEY_CARD_ORDER)) && tp->value->cstring[0]) {
+      apply_order_csv(tp->value->cstring);
     }
     persist_write_data(PKEY_CARDS, &s_cfg, sizeof(s_cfg));
     if (!card_visible(s_card)) s_card = CARD_HERO;   // the open card may have just been hidden

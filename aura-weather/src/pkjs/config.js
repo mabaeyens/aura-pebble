@@ -75,6 +75,10 @@ var config = [
           { "label": "Details", "value": "8" },
           { "label": "Forecast", "value": "9" },
         ] },
+      { "type": "text",
+        "defaultValue": "Order: use the arrows to move a card up or down. The hero stays first and the aviso follows it." },
+      { "type": "input", "messageKey": "CARD_ORDER", "label": "Card order",
+        "defaultValue": "2,3,4,5,6,7,8,9" },
       { "type": "toggle", "messageKey": "SHOW_HOURLY", "label": "Hourly", "defaultValue": true },
       { "type": "toggle", "messageKey": "SHOW_DAILY", "label": "Daily", "defaultValue": true },
       { "type": "toggle", "messageKey": "SHOW_SUNMOON", "label": "Sun & Moon", "defaultValue": true },
@@ -170,6 +174,77 @@ function customFn(minified) {
       if (q.length < 2) { box.innerHTML = ''; return; }
       timer = setTimeout(function () { search(q); }, 300);
     });
+  });
+
+  // Card reorder widget. The wearer orders the eight body cards with up/down
+  // arrows; the value is a CSV of card ids that the phone ships in the CFG frame
+  // and the watch pages in. Standard Clay has no drag list, so this replaces the
+  // raw CARD_ORDER text field with an arrow list (drag on a phone webview is
+  // flaky; arrows are just as complete and testable). Hero and aviso are fixed
+  // first, so only ids 2..9 appear here. Wired on AFTER_BUILD for the same reason
+  // as the typeahead (Clay 1.0.4 has no AFTER_RENDER).
+  clayConfig.on(clayConfig.EVENTS.AFTER_BUILD, function () {
+    var orderItem = clayConfig.getItemByMessageKey('CARD_ORDER');
+    if (!orderItem || !orderItem.$element) return;
+
+    // Hide the raw CSV input; the arrow list stands in for it.
+    if (orderItem.$manipulatorTarget && orderItem.$manipulatorTarget[0]) {
+      orderItem.$manipulatorTarget[0].style.display = 'none';
+    }
+    var host = orderItem.$element[0];
+    var NAMES = { '2': 'Hourly', '3': 'Daily', '4': 'Sun & Moon', '5': 'Wind',
+                  '6': 'UV', '7': 'Air quality', '8': 'Details', '9': 'Forecast' };
+    var ALL = ['2', '3', '4', '5', '6', '7', '8', '9'];
+    var list = document.createElement('div');
+    host.appendChild(list);
+
+    // Sanitise the stored CSV into a full, deduped permutation of the eight ids.
+    function currentOrder() {
+      var raw = String(orderItem.get() || '').split(',');
+      var seen = {}, out = [];
+      for (var i = 0; i < raw.length; i++) {
+        var k = raw[i].trim();
+        if (NAMES[k] && !seen[k]) { seen[k] = 1; out.push(k); }
+      }
+      for (var j = 0; j < ALL.length; j++) if (!seen[ALL[j]]) out.push(ALL[j]);
+      return out;
+    }
+    function save(order) { try { orderItem.set(order.join(',')); } catch (e) {} }
+    function move(i, d) {
+      var order = currentOrder(), j = i + d;
+      if (j < 0 || j >= order.length) return;
+      var t = order[i]; order[i] = order[j]; order[j] = t;
+      save(order); render();
+    }
+    function render() {
+      var order = currentOrder();
+      save(order);                                     // persist the sanitised value
+      list.innerHTML = '';
+      for (var i = 0; i < order.length; i++) {
+        (function (i) {
+          var row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.alignItems = 'center';
+          row.style.justifyContent = 'space-between';
+          row.style.padding = '8px 12px';
+          row.style.borderBottom = '1px solid #333';
+          var name = document.createElement('span');
+          name.textContent = NAMES[order[i]];
+          var btns = document.createElement('span');
+          var up = document.createElement('button');
+          up.type = 'button'; up.textContent = '↑'; up.disabled = (i === 0);
+          up.onclick = function () { move(i, -1); };
+          var dn = document.createElement('button');
+          dn.type = 'button'; dn.textContent = '↓'; dn.disabled = (i === order.length - 1);
+          dn.onclick = function () { move(i, 1); };
+          up.style.margin = dn.style.margin = '0 3px';
+          btns.appendChild(up); btns.appendChild(dn);
+          row.appendChild(name); row.appendChild(btns);
+          list.appendChild(row);
+        })(i);
+      }
+    }
+    render();
   });
 }
 
