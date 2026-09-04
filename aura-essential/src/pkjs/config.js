@@ -1,3 +1,5 @@
+var pkg = require('../../package.json');
+
 // Clay settings schema for the Aura Essential watchface.
 // Values are strings that the C parses as ints (see tuple_int in aura-essential.c).
 //  - SLOT1/2/3 pick each top complication (0 none, 1 steps, 2 heart rate,
@@ -88,6 +90,13 @@ module.exports = [
       { "type": "text", "defaultValue": "Latitude / longitude fill in when you pick a city; edit them to set a location by hand." },
       { "type": "input", "messageKey": "LAT", "label": "Latitude", "attributes": { "placeholder": "40.4168", "type": "text" } },
       { "type": "input", "messageKey": "LON", "label": "Longitude", "attributes": { "placeholder": "-3.7038", "type": "text" } }
+    ]
+  },
+  {
+    "type": "section",
+    "items": [
+      { "type": "text", "defaultValue": "Aura Essential v" + pkg.version,
+        "attributes": { "style": "text-align:center;color:#8aa0b6;font-size:12px;" } }
     ]
   },
   { "type": "submit", "defaultValue": "Save" }
