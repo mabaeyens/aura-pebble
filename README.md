@@ -9,7 +9,7 @@ Aura on iOS (`../../aura-apps`) and Android (`../../aura-android`) is a Spain-on
 Three screens, paged with UP and DOWN, with SELECT to force a refresh and BACK to exit:
 
 - **Hero**: the current temperature and condition over the signature Aura background, the live sun (a moon at night) arcing over a day/night sky drawn procedurally from real sun times, with no baked art. Hi/lo and the location name sit under it.
-- **Hourly**: the next eight hours, each with the hour, a condition glyph (the night variant after sunset), the temperature tinted by Aura's ramp, and a thin bar when rain is likely.
+- **Hourly**: the next eight hours, each with the hour, a condition glyph (the night variant after sunset), a trend track spanning the day's min to max with a ramp-tinted dot at that hour's temperature, the temperature itself, and a thin bar when rain is likely.
 - **Daily**: the next six days, each with the weekday, a condition glyph, and min/max tinted so a cold day reads blue and a hot day red.
 
 The last forecast is persisted, so a screen shows instantly on launch before the phone answers, and stays on screen if the phone is unreachable.
