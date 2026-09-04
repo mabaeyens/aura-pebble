@@ -273,10 +273,22 @@ static void draw_rain(GContext *ctx, GRect r, int density, GColor col) {
 
 static void draw_snow(GContext *ctx, GRect r, GColor col) {
   graphics_context_set_fill_color(ctx, col);
-  for (int x = r.origin.x; x < r.origin.x + r.size.w; x += 22) {
-    for (int y = r.origin.y - 4; y < r.origin.y + r.size.h; y += 20) {
-      int h = x * 13 + y * 29;
-      graphics_fill_circle(ctx, GPoint(x + (h % 20), y + (h % 16)), 2);
+  int step = 18;
+  for (int gx = r.origin.x - step; gx < r.origin.x + r.size.w + step; gx += step) {
+    for (int gy = r.origin.y - step; gy < r.origin.y + r.size.h + step; gy += step) {
+      // Scramble the cell coordinates into a well-mixed hash. A linear hash
+      // (x*a + y*b) makes the jitter climb steadily down each column, which
+      // reads as diagonal bands; mixing the bits decorrelates the flakes.
+      uint32_t hh = (uint32_t)gx * 374761393u + (uint32_t)gy * 668265263u;
+      hh = (hh ^ (hh >> 13)) * 1274126177u;
+      hh ^= hh >> 16;
+      if ((hh & 7u) == 0u) continue;                  // leave gaps, ~1 cell in 8
+      int jx = (int)(hh % (uint32_t)step);            // free position within the cell
+      int jy = (int)((hh >> 8) % (uint32_t)step);
+      int rad = 2;                                    // depth: mostly 2px flakes,
+      if (((hh >> 17) & 3u) == 0u)      rad = 1;      // some far/small,
+      else if (((hh >> 19) & 7u) == 0u) rad = 3;      // a few near/large
+      graphics_fill_circle(ctx, GPoint(gx + jx, gy + jy), rad);
     }
   }
 }
