@@ -20,6 +20,7 @@ static Window    *s_window;
 static Layer     *s_canvas;
 static int        s_screen = SCREEN_HERO;
 
+static GFont s_font_xl;     // extra-large hero temperature
 static GFont s_font_big;    // large current temperature
 static GFont s_font_text;   // labels, hi/lo, location, weekday
 static GFont s_font_small;  // staleness note
@@ -78,48 +79,122 @@ static void draw_text_in(GContext *ctx, const char *s, GFont f, GRect box,
   graphics_draw_text(ctx, s, f, box, GTextOverflowModeTrailingEllipsis, align, NULL);
 }
 
+// Draw text with a 1px black halo so it stays legible floating over the scene
+// (Pebble has no soft shadow/blur; four cardinal offsets read as a clean edge).
+static void draw_text_halo(GContext *ctx, const char *s, GFont f, GRect box,
+                           GColor col, GTextAlignment align) {
+  graphics_context_set_text_color(ctx, GColorBlack);
+  static const int dx[] = { -1, 1, 0, 0 }, dy[] = { 0, 0, -1, 1 };
+  for (int i = 0; i < 4; i++) {
+    graphics_draw_text(ctx, s, f, GRect(box.origin.x + dx[i], box.origin.y + dy[i],
+                                        box.size.w, box.size.h),
+                       GTextOverflowModeTrailingEllipsis, align, NULL);
+  }
+  graphics_context_set_text_color(ctx, col);
+  graphics_draw_text(ctx, s, f, box, GTextOverflowModeTrailingEllipsis, align, NULL);
+}
+
+// One-word-ish condition summary shown under the temperature (the hero headline).
+static const char *wx_summary(uint8_t code) {
+  switch (code) {
+    case WX_CLEAR:    return "Clear";
+    case WX_FEW:      return "Few clouds";
+    case WX_CLOUDY:   return "Cloudy";
+    case WX_OVERCAST: return "Overcast";
+    case WX_FOG:      return "Fog";
+    case WX_DRIZZLE:  return "Drizzle";
+    case WX_RAIN:     return "Rain";
+    case WX_HEAVY:    return "Heavy rain";
+    case WX_SNOW:     return "Snow";
+    case WX_THUNDER:  return "Thunderstorm";
+    default:          return "";
+  }
+}
+
+// A severe-weather warning label, or NULL when nothing is worth flagging. The
+// phone bridge carries no alert field yet, so this is derived from the condition
+// itself; a real AEMET aviso feed would replace it later.
+static const char *wx_warning(uint8_t code) {
+  switch (code) {
+    case WX_THUNDER: return "STORM";
+    case WX_HEAVY:   return "HEAVY RAIN";
+    case WX_SNOW:    return "SNOW";
+    case WX_FOG:     return "FOG";
+    default:         return NULL;
+  }
+}
+
+static GColor warning_color(uint8_t code) {
+  switch (code) {
+    case WX_SNOW: return GColorCeleste;       // pale blue
+    case WX_FOG:  return GColorLightGray;
+    default:      return GColorChromeYellow;  // storm / heavy rain: hazard amber
+  }
+}
+
 // ---- hero screen -----------------------------------------------------------
 
 static void draw_hero(GContext *ctx, GRect b) {
-  GRect sky = GRect(b.origin.x, b.origin.y, b.size.w, b.size.h * 62 / 100);
   time_t now = time(NULL);
-  SunState sun = sun_compute(now, s_wx.sunrise, s_wx.sunset, sky);
-  sky_draw(ctx, sky, sun);
+  // The sun arcs over the full frame; the scenery then occludes it near the
+  // horizon, exactly as the phone hero composes sky -> disc -> landscape.
+  SunState sun = sun_compute(now, s_wx.sunrise, s_wx.sunset, b);
+  sky_draw(ctx, b, sun, s_wx.code);
+  scene_draw(ctx, b, sun, s_wx.code);
 
-  // Dark readout band under the sky so text stays legible over any sky colour.
-  int ry = sky.origin.y + sky.size.h;
-  GRect readout = GRect(b.origin.x, ry, b.size.w, b.origin.y + b.size.h - ry);
-  graphics_context_set_fill_color(ctx, GColorBlack);
-  graphics_fill_rect(ctx, readout, 0, GCornerNone);
-
-  bool night = is_night_at(now);
+  int Y = b.origin.y, W = b.size.w, H = b.size.h;
+  int pad = 6, X = b.origin.x + pad, tw = W - pad * 2;
   char buf[32];
 
-  // Condition glyph, top-left of the readout band.
-  draw_text_in(ctx, wx_glyph(s_wx.code, night), s_font_wx,
-               GRect(readout.origin.x + 4, ry - 2, 40, 40), GColorWhite, GTextAlignmentLeft);
+  // The Aura hero overlay floats over the scene (no card frame), left-aligned
+  // like the phone app: location top-left, then the big temperature, condition
+  // summary, hi/lo, and a warning pill for severe weather.
 
-  // Current temperature, large and centred.
+  // A tight left-aligned cluster near the top (like the phone hero). Each line's
+  // box top is placed by hand so the *visible* gap between glyphs is equal: the
+  // XL temp font carries heavy internal top padding, so its box is pulled up hard
+  // (its digits render well below the box top).
+  // Box tops solved from each font's measured glyph offsets so the *visible* gap
+  // between every pair of lines is a uniform 7px (the big temp box sits high
+  // because its digits render ~14px below the box top).
+  int y_loc  = Y +  6;   // location -> glyphs 10..28
+  int y_temp = Y + 21;   // big temp -> digits 35..69
+  int y_sum  = Y + 72;   // summary  -> glyphs 76..90
+  int y_hilo = Y + 93;   // hi/lo    -> glyphs 97..111
+
+  // Location, top-left, small.
+  draw_text_halo(ctx, s_wx.name, s_font_text, GRect(X, y_loc, tw, 20),
+                 GColorWhite, GTextAlignmentLeft);
+
+  // Current temperature, extra-large, tucked close under the location.
   snprintf(buf, sizeof(buf), "%d\xC2\xB0", s_wx.temp);
-  draw_text_in(ctx, buf, s_font_big, GRect(readout.origin.x, ry - 6, readout.size.w, 40),
-               temp_color(s_wx.temp, s_wx.is_metric), GTextAlignmentCenter);
+  draw_text_halo(ctx, buf, s_font_xl, GRect(X, y_temp, tw, 56),
+                 temp_color(s_wx.temp, s_wx.is_metric), GTextAlignmentLeft);
 
-  // Hi / lo, tinted by the ramp, just under the temperature.
-  snprintf(buf, sizeof(buf), "%d\xC2\xB0 / %d\xC2\xB0", s_wx.tmax, s_wx.tmin);
-  draw_text_in(ctx, buf, s_font_text, GRect(readout.origin.x, ry + 34, readout.size.w, 22),
-               GColorWhite, GTextAlignmentCenter);
+  // Condition summary under the temperature.
+  draw_text_halo(ctx, wx_summary(s_wx.code), s_font_text,
+                 GRect(X, y_sum, tw, 22), GColorWhite, GTextAlignmentLeft);
 
-  // Location name near the bottom.
-  draw_text_in(ctx, s_wx.name, s_font_text,
-               GRect(readout.origin.x + 4, readout.origin.y + readout.size.h - 24,
-                     readout.size.w - 8, 22),
-               GColorWhite, GTextAlignmentCenter);
-
-  // Staleness note if the forecast is old (> 90 min) or absent.
+  // Hi / lo dataline below the summary.
   if (s_wx.updated == 0) {
-    draw_text_in(ctx, "no data", s_font_small,
-                 GRect(readout.origin.x + 4, ry + 2, readout.size.w - 8, 16),
-                 GColorLightGray, GTextAlignmentRight);
+    draw_text_halo(ctx, "no data", s_font_small, GRect(X, y_hilo + 1, tw, 16),
+                   GColorLightGray, GTextAlignmentLeft);
+  } else {
+    snprintf(buf, sizeof(buf), "%d\xC2\xB0 / %d\xC2\xB0", s_wx.tmax, s_wx.tmin);
+    draw_text_halo(ctx, buf, s_font_text, GRect(X, y_hilo, tw, 20),
+                   GColorWhite, GTextAlignmentLeft);
+  }
+
+  // Warning pill over the scene, left-aligned, only for severe conditions.
+  const char *warn = wx_warning(s_wx.code);
+  if (warn) {
+    GSize sz = graphics_text_layout_get_content_size(warn, s_font_small,
+                 GRect(0, 0, tw, 20), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
+    int pw = sz.w + 18, ph = 18, pyy = Y + H * 72 / 100;
+    graphics_context_set_fill_color(ctx, GColorBlack);
+    graphics_fill_rect(ctx, GRect(X, pyy, pw, ph), ph / 2, GCornersAll);
+    draw_text_in(ctx, warn, s_font_small, GRect(X, pyy + 1, pw, 16),
+                 warning_color(s_wx.code), GTextAlignmentCenter);
   }
 }
 
@@ -349,6 +424,7 @@ static void window_unload(Window *window) {
 }
 
 static void init(void) {
+  s_font_xl     = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_48));
   s_font_big    = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_34));
   s_font_text   = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_18));
   s_font_small  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_14));
@@ -374,6 +450,7 @@ static void init(void) {
 static void deinit(void) {
   tick_timer_service_unsubscribe();
   window_destroy(s_window);
+  fonts_unload_custom_font(s_font_xl);
   fonts_unload_custom_font(s_font_big);
   fonts_unload_custom_font(s_font_text);
   fonts_unload_custom_font(s_font_small);
