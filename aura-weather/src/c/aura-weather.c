@@ -9,16 +9,26 @@
 // persists it, and renders. SELECT requests a refresh. UP/DOWN page the three
 // screens; the hero (step 1) draws the procedural sun over the sky.
 
-#define SCREEN_HERO   0
-#define SCREEN_HOURLY 1
-#define SCREEN_DAILY  2
-#define SCREEN_COUNT  3
+// The card stack (docs/06). Order is the natural default; cards appear and
+// disappear by data availability (aviso only with an active warning, UV only
+// when the sun reaches a peak), so navigation walks the *visible* cards.
+enum {
+  CARD_HERO = 0,
+  CARD_AVISO,
+  CARD_HOURLY,
+  CARD_DAILY,
+  CARD_SUNMOON,
+  CARD_WIND,
+  CARD_UV,
+  CARD_DETAILS,
+  CARD_N
+};
 
 #define PKEY_WEATHER 1   // persist slot for the whole Weather struct
 
 static Window    *s_window;
 static Layer     *s_canvas;
-static int        s_screen = SCREEN_HERO;
+static int        s_card = CARD_HERO;
 
 static GFont s_font_xl;     // extra-large hero temperature
 static GFont s_font_big;    // large current temperature
@@ -111,25 +121,137 @@ static const char *wx_summary(uint8_t code) {
   }
 }
 
-// A severe-weather warning label, or NULL when nothing is worth flagging. The
-// phone bridge carries no alert field yet, so this is derived from the condition
-// itself; a real AEMET aviso feed would replace it later.
-static const char *wx_warning(uint8_t code) {
-  switch (code) {
-    case WX_THUNDER: return "STORM";
-    case WX_HEAVY:   return "HEAVY RAIN";
-    case WX_SNOW:    return "SNOW";
-    case WX_FOG:     return "FOG";
-    default:         return NULL;
+// ---- aviso / gauge vocabulary (docs/06) ------------------------------------
+
+// The four AEMET colour levels, mirrored for the derived advisory.
+static GColor alert_color(uint8_t lvl) {
+  switch (lvl) {
+    case 1:  return GColorGreen;    // verde
+    case 2:  return GColorYellow;   // amarillo
+    case 3:  return GColorOrange;   // naranja
+    case 4:  return GColorRed;      // rojo
+    default: return GColorBlack;
+  }
+}
+// Black reads better on the light levels, white on the dark ones.
+static GColor alert_ink(uint8_t lvl) { return (lvl == 2 || lvl == 3) ? GColorBlack : GColorWhite; }
+
+static const char *alert_word(uint8_t label) {
+  switch (label) {
+    case ALERT_HEAT:  return "Heat";
+    case ALERT_STORM: return "Storm";
+    case ALERT_SNOW:  return "Snow";
+    case ALERT_WIND:  return "Wind";
+    case ALERT_FOG:   return "Fog";
+    case ALERT_RAIN:  return "Rain";
+    case ALERT_COLD:  return "Cold";
+    default:          return "Warning";
+  }
+}
+static const char *alert_level_word(uint8_t lvl) {
+  switch (lvl) {
+    case 1:  return "Advisory";
+    case 2:  return "Yellow";
+    case 3:  return "Orange";
+    case 4:  return "Red";
+    default: return "";
   }
 }
 
-static GColor warning_color(uint8_t code) {
-  switch (code) {
-    case WX_SNOW: return GColorCeleste;       // pale blue
-    case WX_FOG:  return GColorLightGray;
-    default:      return GColorChromeYellow;  // storm / heavy rain: hazard amber
+// 16-point compass labels (index 0 = N, clockwise), matching the phone's dir16.
+static const char *CARD16[16] = {
+  "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+  "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",
+};
+
+// Wind ramp (compare in km/h): light / moderate / strong / gale.
+static GColor wind_color(int kmh) {
+  if (kmh < 12) return GColorMediumSpringGreen;
+  if (kmh < 39) return GColorRajah;             // yellow
+  if (kmh < 62) return GColorOrange;
+  return GColorRed;
+}
+
+// WHO UV bands and their ramp colours.
+static GColor uv_color(int uv) {
+  if (uv <= 2)  return GColorGreen;
+  if (uv <= 5)  return GColorYellow;
+  if (uv <= 7)  return GColorOrange;
+  if (uv <= 10) return GColorRed;
+  return GColorPurple;                          // extreme (violet)
+}
+static const char *uv_band(int uv) {
+  if (uv <= 2)  return "Low";
+  if (uv <= 5)  return "Moderate";
+  if (uv <= 7)  return "High";
+  if (uv <= 10) return "Very high";
+  return "Extreme";
+}
+
+static const char *MOON_NAME[8] = {
+  "New", "Waxing crescent", "First quarter", "Waxing gibbous",
+  "Full", "Waning gibbous", "Last quarter", "Waning crescent",
+};
+
+// A radial gauge: a full track ring, then a `pct` arc filled clockwise from top.
+static void draw_ring(GContext *ctx, GRect frame, int thickness, int pct,
+                      GColor track, GColor fill) {
+  graphics_context_set_fill_color(ctx, track);
+  graphics_fill_radial(ctx, frame, GOvalScaleModeFitCircle, thickness, 0, TRIG_MAX_ANGLE);
+  if (pct > 0) {
+    if (pct > 100) pct = 100;
+    graphics_context_set_fill_color(ctx, fill);
+    graphics_fill_radial(ctx, frame, GOvalScaleModeFitCircle, thickness,
+                         0, TRIG_MAX_ANGLE * pct / 100);
   }
+}
+
+static int isqrt_i(int v) {
+  if (v <= 0) return 0;
+  int x = v, y = (x + 1) / 2;
+  while (y < x) { x = y; y = (x + v / x) / 2; }
+  return x;
+}
+
+// A moon disc with a terminator: the lit fraction is a lune bounded by an
+// ellipse of half-width (1 - 2*lit)*r, scanned row by row. `waxing` lights the
+// right limb, waning the left; the unlit limb stays a dim disc so it still reads.
+static void draw_moon(GContext *ctx, GPoint c, int r, int lit_pct, bool waxing) {
+  for (int dy = -r; dy <= r; dy++) {
+    int half = isqrt_i(r * r - dy * dy);
+    int y = c.y + dy;
+    graphics_context_set_stroke_color(ctx, GColorOxfordBlue);   // dark limb
+    graphics_draw_line(ctx, GPoint(c.x - half, y), GPoint(c.x + half, y));
+    int xt = (100 - 2 * lit_pct) * half / 100;                  // terminator x at this row
+    int x0, x1;
+    if (waxing) { x0 = xt; x1 = half; } else { x0 = -half; x1 = -xt; }
+    if (x1 > x0) {
+      graphics_context_set_stroke_color(ctx, GColorWhite);
+      graphics_draw_line(ctx, GPoint(c.x + x0, y), GPoint(c.x + x1, y));
+    }
+  }
+  graphics_context_set_stroke_color(ctx, GColorLightGray);
+  graphics_draw_circle(ctx, c, r);
+}
+
+// A warning triangle with an exclamation punched through it in `hole`.
+static void draw_warning_triangle(GContext *ctx, GPoint c, int s, GColor fill, GColor hole) {
+  GPoint pts[3] = { { c.x, c.y - s }, { c.x - s, c.y + s * 3 / 4 }, { c.x + s, c.y + s * 3 / 4 } };
+  GPathInfo info = { 3, pts };
+  GPath *p = gpath_create(&info);
+  if (p) {
+    graphics_context_set_fill_color(ctx, fill);
+    gpath_draw_filled(ctx, p);
+    gpath_destroy(p);
+  }
+  graphics_context_set_fill_color(ctx, hole);
+  graphics_fill_rect(ctx, GRect(c.x - 2, c.y - s / 3, 4, s * 2 / 3 - 3), 1, GCornersAll);
+  graphics_fill_rect(ctx, GRect(c.x - 2, c.y + s / 2 - 1, 4, 4), 1, GCornersAll);
+}
+
+// hh:mm for a unix time in the watch's 12/24h style.
+static void fmt_hhmm(char *buf, size_t n, time_t t) {
+  strftime(buf, n, clock_is_24h_style() ? "%H:%M" : "%I:%M", localtime(&t));
 }
 
 // ---- hero screen -----------------------------------------------------------
@@ -142,7 +264,7 @@ static void draw_hero(GContext *ctx, GRect b) {
   sky_draw(ctx, b, sun, s_wx.code);
   scene_draw(ctx, b, sun, s_wx.code);
 
-  int Y = b.origin.y, W = b.size.w, H = b.size.h;
+  int Y = b.origin.y, W = b.size.w;
   int pad = 6, X = b.origin.x + pad, tw = W - pad * 2;
   char buf[32];
 
@@ -185,16 +307,18 @@ static void draw_hero(GContext *ctx, GRect b) {
                    GColorWhite, GTextAlignmentLeft);
   }
 
-  // Warning pill over the scene, left-aligned, only for severe conditions.
-  const char *warn = wx_warning(s_wx.code);
-  if (warn) {
+  // Warning pill over the scene, left-aligned, only when an aviso is active. The
+  // phone fills alert_level/label (derived worldwide, official AEMET in Spain);
+  // the full colour-coded aviso card carries the detail.
+  if (s_wx.alert_level > 0) {
+    const char *warn = alert_word(s_wx.alert_label);
     GSize sz = graphics_text_layout_get_content_size(warn, s_font_small,
                  GRect(0, 0, tw, 20), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
     int pw = sz.w + 18, ph = 18, pyy = y_hilo + 25;   // 6px under the hi/lo row
     graphics_context_set_fill_color(ctx, GColorBlack);
     graphics_fill_rect(ctx, GRect(X, pyy, pw, ph), ph / 2, GCornersAll);
     draw_text_in(ctx, warn, s_font_small, GRect(X, pyy + 1, pw, 16),
-                 warning_color(s_wx.code), GTextAlignmentCenter);
+                 alert_color(s_wx.alert_level), GTextAlignmentCenter);
   }
 }
 
@@ -307,25 +431,205 @@ static void draw_daily(GContext *ctx, GRect b) {
   }
 }
 
+// ---- aviso card: colour-coded warning, only when one is active -------------
+
+static void draw_aviso(GContext *ctx, GRect b) {
+  uint8_t lvl = s_wx.alert_level;
+  GColor bg = alert_color(lvl), ink = alert_ink(lvl);
+  graphics_context_set_fill_color(ctx, bg);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+
+  GPoint c = GPoint(b.origin.x + b.size.w / 2, b.origin.y + 58);
+  draw_warning_triangle(ctx, c, 34, ink, bg);
+
+  draw_text_in(ctx, alert_word(s_wx.alert_label), s_font_big,
+               GRect(b.origin.x, b.origin.y + 100, b.size.w, 42), ink, GTextAlignmentCenter);
+  draw_text_in(ctx, alert_level_word(lvl), s_font_text,
+               GRect(b.origin.x, b.origin.y + 148, b.size.w, 22), ink, GTextAlignmentCenter);
+}
+
+// ---- sun & moon card: daylight arc by day, moon phase after dark ------------
+
+static void draw_sunmoon(GContext *ctx, GRect b) {
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+
+  time_t now = time(NULL);
+  bool night = is_night_at(now);
+  int cx = b.origin.x + b.size.w / 2;
+  char buf[16];
+
+  if (!night) {
+    draw_text_in(ctx, "Daylight", s_font_text,
+                 GRect(b.origin.x, b.origin.y + 8, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+
+    int r = b.size.w / 2 - 22;
+    GRect af = GRect(cx - r, b.origin.y + 52, 2 * r, 2 * r);   // sun rides the top half
+    graphics_context_set_stroke_color(ctx, GColorDarkGray);
+    graphics_context_set_stroke_width(ctx, 3);
+    graphics_draw_arc(ctx, af, GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(-90), DEG_TO_TRIGANGLE(90));
+
+    int prog = 0;
+    if (s_wx.sunset > s_wx.sunrise) {
+      prog = (int)((now - s_wx.sunrise) * 100 / (s_wx.sunset - s_wx.sunrise));
+      if (prog < 0) prog = 0;
+      if (prog > 100) prog = 100;
+    }
+    int32_t ang = DEG_TO_TRIGANGLE(-90 + 180 * prog / 100);    // sunrise left, noon top, sunset right
+    GPoint sp = gpoint_from_polar(af, GOvalScaleModeFitCircle, ang);
+    graphics_context_set_fill_color(ctx, GColorYellow);
+    graphics_fill_circle(ctx, sp, 7);
+
+    time_t sr = s_wx.sunrise, ss = s_wx.sunset;
+    fmt_hhmm(buf, sizeof(buf), sr);
+    draw_text_in(ctx, buf, s_font_small, GRect(cx - r - 4, af.origin.y + 2 * r - 6, 52, 16),
+                 GColorChromeYellow, GTextAlignmentLeft);
+    fmt_hhmm(buf, sizeof(buf), ss);
+    draw_text_in(ctx, buf, s_font_small, GRect(cx + r - 48, af.origin.y + 2 * r - 6, 52, 16),
+                 GColorOrange, GTextAlignmentRight);
+  } else {
+    draw_text_in(ctx, "Moon", s_font_text,
+                 GRect(b.origin.x, b.origin.y + 8, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+    draw_moon(ctx, GPoint(cx, b.origin.y + 84), 36, s_wx.moon_illum, s_wx.moon_phase < 4);
+    draw_text_in(ctx, MOON_NAME[s_wx.moon_phase & 7], s_font_text,
+                 GRect(b.origin.x, b.origin.y + 132, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+    snprintf(buf, sizeof(buf), "%d%% lit", s_wx.moon_illum);
+    draw_text_in(ctx, buf, s_font_small, GRect(b.origin.x, b.origin.y + 158, b.size.w, 16),
+                 GColorLightGray, GTextAlignmentCenter);
+  }
+}
+
+// ---- wind card: a needle over a compass rose --------------------------------
+
+static void draw_wind(GContext *ctx, GRect b) {
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+  draw_text_in(ctx, "Wind", s_font_text,
+               GRect(b.origin.x, b.origin.y + 8, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+
+  int cx = b.origin.x + b.size.w / 2, cy = b.origin.y + 78, r = 46;
+  GRect rf = GRect(cx - r, cy - r, 2 * r, 2 * r);
+  graphics_context_set_stroke_color(ctx, GColorDarkGray);
+  graphics_context_set_stroke_width(ctx, 2);
+  graphics_draw_circle(ctx, GPoint(cx, cy), r);
+  draw_text_in(ctx, "N", s_font_small, GRect(cx - 8, cy - r - 3, 16, 16), GColorLightGray, GTextAlignmentCenter);
+  draw_text_in(ctx, "S", s_font_small, GRect(cx - 8, cy + r - 13, 16, 16), GColorLightGray, GTextAlignmentCenter);
+  draw_text_in(ctx, "E", s_font_small, GRect(cx + r - 15, cy - 8, 16, 16), GColorLightGray, GTextAlignmentCenter);
+  draw_text_in(ctx, "W", s_font_small, GRect(cx - r - 1, cy - 8, 16, 16), GColorLightGray, GTextAlignmentCenter);
+
+  int kmh = s_wx.is_metric ? s_wx.wind_speed : (int)(s_wx.wind_speed * 1.609f);
+  GColor wc = wind_color(kmh);
+  int32_t ang = DEG_TO_TRIGANGLE(s_wx.wind_dir * 360 / 16);          // the source (tail)
+  GPoint tail = gpoint_from_polar(rf, GOvalScaleModeFitCircle, ang);
+  GPoint tip  = gpoint_from_polar(rf, GOvalScaleModeFitCircle,
+                                  (ang + TRIG_MAX_ANGLE / 2) % TRIG_MAX_ANGLE);
+  graphics_context_set_stroke_color(ctx, wc);
+  graphics_context_set_stroke_width(ctx, 4);
+  graphics_draw_line(ctx, tail, tip);
+  graphics_context_set_fill_color(ctx, wc);
+  graphics_fill_circle(ctx, tip, 5);                                 // arrow head (where it blows)
+  graphics_context_set_fill_color(ctx, GColorWhite);
+  graphics_fill_circle(ctx, GPoint(cx, cy), 3);
+
+  char buf[24];
+  snprintf(buf, sizeof(buf), "%d %s", s_wx.wind_speed, s_wx.is_metric ? "km/h" : "mph");
+  draw_text_in(ctx, buf, s_font_big, GRect(b.origin.x, cy + r + 6, b.size.w, 34), wc, GTextAlignmentCenter);
+  snprintf(buf, sizeof(buf), "from %s   gust %d", CARD16[s_wx.wind_dir & 15], s_wx.wind_gust);
+  draw_text_in(ctx, buf, s_font_small, GRect(b.origin.x, cy + r + 42, b.size.w, 16),
+               GColorLightGray, GTextAlignmentCenter);
+}
+
+// ---- UV card: a ring from 0 to today's peak ---------------------------------
+
+static void draw_uv(GContext *ctx, GRect b) {
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+  draw_text_in(ctx, "UV index", s_font_text,
+               GRect(b.origin.x, b.origin.y + 8, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+
+  int cx = b.origin.x + b.size.w / 2, cy = b.origin.y + 96, r = 50;
+  GRect rf = GRect(cx - r, cy - r, 2 * r, 2 * r);
+  int peak = s_wx.uv_peak > 0 ? s_wx.uv_peak : 1;
+  int pct = s_wx.uv * 100 / peak;
+  GColor uc = uv_color(s_wx.uv);
+  draw_ring(ctx, rf, 10, pct, GColorDarkGray, uc);
+
+  char buf[8];
+  snprintf(buf, sizeof(buf), "%d", s_wx.uv);
+  draw_text_in(ctx, buf, s_font_big, GRect(cx - 40, cy - 24, 80, 36), uc, GTextAlignmentCenter);
+  draw_text_in(ctx, uv_band(s_wx.uv), s_font_text,
+               GRect(b.origin.x, cy + r + 6, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+  snprintf(buf, sizeof(buf), "peak %d", s_wx.uv_peak);
+  draw_text_in(ctx, buf, s_font_small, GRect(b.origin.x, cy + r + 30, b.size.w, 16),
+               GColorLightGray, GTextAlignmentCenter);
+}
+
+// ---- details card: the fields the hero omits, to stay calm ------------------
+
+static void detail_row(GContext *ctx, GRect b, int y, const char *label, const char *val, GColor vc) {
+  draw_text_in(ctx, label, s_font_text, GRect(b.origin.x + 16, y, b.size.w / 2, 26),
+               GColorLightGray, GTextAlignmentLeft);
+  draw_text_in(ctx, val, s_font_text, GRect(b.origin.x, y, b.size.w - 16, 26),
+               vc, GTextAlignmentRight);
+}
+
+static void draw_details(GContext *ctx, GRect b) {
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+  draw_text_in(ctx, "Details", s_font_text,
+               GRect(b.origin.x, b.origin.y + 8, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+
+  int y = b.origin.y + 44, rh = 40;
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%d\xC2\xB0", s_wx.feels_like);
+  detail_row(ctx, b, y, "Feels", buf, temp_color(s_wx.feels_like, s_wx.is_metric));
+  snprintf(buf, sizeof(buf), "%d%%", s_wx.humidity);
+  detail_row(ctx, b, y + rh, "Humidity", buf, GColorWhite);
+  snprintf(buf, sizeof(buf), "%d mm", s_wx.precip_mm);
+  detail_row(ctx, b, y + rh * 2, "Precip", buf, GColorPictonBlue);
+  int kmh = s_wx.is_metric ? s_wx.wind_gust : (int)(s_wx.wind_gust * 1.609f);
+  snprintf(buf, sizeof(buf), "%d %s", s_wx.wind_gust, s_wx.is_metric ? "km/h" : "mph");
+  detail_row(ctx, b, y + rh * 3, "Gust", buf, wind_color(kmh));
+}
+
 static void canvas_update(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
-  switch (s_screen) {
-    case SCREEN_HERO:   draw_hero(ctx, b); break;
-    case SCREEN_HOURLY: draw_hourly(ctx, b); break;
-    case SCREEN_DAILY:  draw_daily(ctx, b); break;
+  switch (s_card) {
+    case CARD_HERO:    draw_hero(ctx, b);    break;
+    case CARD_AVISO:   draw_aviso(ctx, b);   break;
+    case CARD_HOURLY:  draw_hourly(ctx, b);  break;
+    case CARD_DAILY:   draw_daily(ctx, b);   break;
+    case CARD_SUNMOON: draw_sunmoon(ctx, b); break;
+    case CARD_WIND:    draw_wind(ctx, b);    break;
+    case CARD_UV:      draw_uv(ctx, b);      break;
+    case CARD_DETAILS: draw_details(ctx, b); break;
   }
 }
 
 // ---- input + ticks ---------------------------------------------------------
 
-static void up_click(ClickRecognizerRef r, void *ctx) {
-  s_screen = (s_screen + SCREEN_COUNT - 1) % SCREEN_COUNT;
+// A card shows only when it has something to say: the aviso needs an active
+// warning, the UV ring needs a day with some sun. The rest are always present.
+static bool card_visible(int c) {
+  switch (c) {
+    case CARD_AVISO: return s_wx.alert_level > 0;
+    case CARD_UV:    return s_wx.uv_peak > 0;
+    default:         return true;
+  }
+}
+
+// Step to the next visible card in `dir` (+1 down, -1 up), wrapping.
+static void card_step(int dir) {
+  int c = s_card;
+  for (int i = 0; i < CARD_N; i++) {
+    c = (c + dir + CARD_N) % CARD_N;
+    if (card_visible(c)) { s_card = c; break; }
+  }
   layer_mark_dirty(s_canvas);
 }
-static void down_click(ClickRecognizerRef r, void *ctx) {
-  s_screen = (s_screen + 1) % SCREEN_COUNT;
-  layer_mark_dirty(s_canvas);
-}
+
+static void up_click(ClickRecognizerRef r, void *ctx)   { card_step(-1); }
+static void down_click(ClickRecognizerRef r, void *ctx) { card_step(1); }
 static void select_click(ClickRecognizerRef r, void *ctx) {
   request_refresh();
   layer_mark_dirty(s_canvas);
@@ -337,7 +641,8 @@ static void click_config(void *ctx) {
 }
 
 static void tick_handler(struct tm *t, TimeUnits units) {
-  if (s_screen == SCREEN_HERO) layer_mark_dirty(s_canvas);   // the sun/moon moves
+  // The hero and the sun/moon card both animate the sun's position each minute.
+  if (s_card == CARD_HERO || s_card == CARD_SUNMOON) layer_mark_dirty(s_canvas);
 }
 
 // ---- persistence + first-run default ---------------------------------------
@@ -402,6 +707,7 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     if ((tp = dict_find(iter, MESSAGE_KEY_WX_ALEVEL)))  s_wx.alert_level = tp->value->int32;
     if ((tp = dict_find(iter, MESSAGE_KEY_WX_ALABEL)))  s_wx.alert_label = tp->value->int32;
     persist_save();
+    if (!card_visible(s_card)) s_card = CARD_HERO;   // the open card may have just vanished
     layer_mark_dirty(s_canvas);
     return;
   }

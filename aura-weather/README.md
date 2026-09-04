@@ -6,13 +6,18 @@ Aura on iOS (`../../aura-apps`) and Android (`../../aura-android`) is a Spain-on
 
 ## What it does
 
-Three screens, paged with UP and DOWN, with SELECT to force a refresh and BACK to exit:
+A stack of cards, paged with UP and DOWN, with SELECT to force a refresh and BACK to exit. Cards appear only when they have something to say (the aviso only during a warning, the UV ring only when the sun reaches a peak):
 
-- **Hero**: the current temperature and condition over the signature Aura background, the live sun (a moon at night) arcing over a day/night sky drawn procedurally from real sun times, with no baked art. Hi/lo and the location name sit under it.
+- **Hero**: the current temperature and condition over the signature Aura background, the live sun (a moon at night) arcing over a day/night sky drawn procedurally from real sun times, with no baked art. Hi/lo and the location name sit under it, and a warning pill when an aviso is active.
+- **Aviso**: a colour-coded warning card in the four AEMET levels (verde, amarillo, naranja, rojo) with the phenomenon. Worldwide it shows a threshold advisory (storm, heavy rain, snow, wind, heat, cold, fog) derived from the numbers; in Spain an official AEMET aviso will override it. Shown only when a warning is active.
 - **Hourly**: the next eight hours, each with the hour, a condition glyph (the night variant after sunset), a trend track spanning the day's min to max with a ramp-tinted dot at that hour's temperature, the temperature itself, and a thin bar when rain is likely.
 - **Daily**: the next six days, each with the weekday, a condition glyph, and min/max tinted so a cold day reads blue and a hot day red.
+- **Sun and Moon**: by day, a daylight arc with the sun riding sunrise to sunset and the times at the ends; after dark, the moon drawn at its real phase with the phase name and illumination.
+- **Wind**: a needle over a compass rose, coloured by the wind ramp, with the speed, the direction it blows from, and the gust.
+- **UV**: a ring from zero to today's peak in the WHO colour, the live index, and the band name (Low, Moderate, High, Very high, Extreme).
+- **Details**: feels-like, humidity, precipitation and gust, the fields the hero leaves off to stay calm.
 
-The last forecast is persisted, so a screen shows instantly on launch before the phone answers, and stays on screen if the phone is unreachable.
+The last forecast is persisted, so a card shows instantly on launch before the phone answers, and stays on screen if the phone is unreachable.
 
 ## Data
 
