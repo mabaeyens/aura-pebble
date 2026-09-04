@@ -220,28 +220,50 @@ static void draw_hourly(GContext *ctx, GRect b) {
   int row_h = b.size.h / HOURS_N;
   char buf[8];
 
+  // Temperature span across the visible hours drives the trend-bar lengths.
+  int lo = 127, hi = -128;
+  for (int i = 0; i < HOURS_N; i++) {
+    int t = s_wx.hours[i].temp;
+    if (t < lo) lo = t;
+    if (t > hi) hi = t;
+  }
+  int range = (hi - lo) < 1 ? 1 : (hi - lo);
+  int trackX = b.origin.x + 72;
+  int trackW = b.size.w - trackX - 46;
+  int dotr = 5;
+  int usable = trackW - 2 * dotr;
+
   for (int i = 0; i < HOURS_N; i++) {
     GRect row = GRect(b.origin.x, b.origin.y + i * row_h, b.size.w, row_h);
     HourSlot *hs = &s_wx.hours[i];
     int hour = (now_hour + i) % 24;
+    int cy = row.origin.y + row_h / 2;
+    GColor tint = temp_color(hs->temp, s_wx.is_metric);
 
     // Hour label, 12/24h per the watch's system setting.
     if (h24)               snprintf(buf, sizeof(buf), "%02d", hour);
     else                   snprintf(buf, sizeof(buf), "%d%s", (hour % 12) ? (hour % 12) : 12,
                                     hour < 12 ? "a" : "p");
-    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x + 6, row.origin.y, 46, row_h),
+    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x + 6, row.origin.y, 28, row_h),
                  GColorWhite, GTextAlignmentLeft);
 
     // Condition glyph, night variant if that hour is after sunset / before sunrise.
     bool night = is_night_at(now + i * 3600);
     draw_text_in(ctx, wx_glyph(hs->code, night), s_font_wx_sm,
-                 GRect(row.origin.x + row.size.w / 2 - 24, row.origin.y - 2, 48, row_h),
+                 GRect(row.origin.x + 34, row.origin.y - 2, 34, row_h),
                  GColorWhite, GTextAlignmentCenter);
+
+    // Trend track spans the day's min..max; a ramp-tinted dot marks this hour.
+    graphics_context_set_fill_color(ctx, GColorDarkGray);
+    graphics_fill_rect(ctx, GRect(trackX, cy - 1, trackW, 2), 1, GCornersAll);
+    int dotx = trackX + dotr + (hs->temp - lo) * usable / range;
+    graphics_context_set_fill_color(ctx, tint);
+    graphics_fill_circle(ctx, GPoint(dotx, cy), dotr);
 
     // Temperature, tinted by the ramp.
     snprintf(buf, sizeof(buf), "%d\xC2\xB0", hs->temp);
-    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x, row.origin.y, row.size.w - 8, row_h),
-                 temp_color(hs->temp, s_wx.is_metric), GTextAlignmentRight);
+    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x, row.origin.y, row.size.w - 6, row_h),
+                 tint, GTextAlignmentRight);
 
     draw_pop_bar(ctx, row, hs->pop);
   }
