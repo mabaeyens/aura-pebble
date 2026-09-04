@@ -52,4 +52,20 @@ function ccaaForINE(ine) {
   return (p >= 1 && p <= 52) ? CCAA_BY_PROV[p] : '';
 }
 
-module.exports = { inSpain: inSpain, nearestINE: nearestINE, ccaaForINE: ccaaForINE };
+// AEMET avisos_cap area code by autonomous community (docs/06 Phase C). Numeric
+// per-CCAA codes; best-effort, same safe degradation as the boletín (a wrong
+// code fails the fetch and the derived aviso stands).
+var AREA_BY_CCAA = {
+  and: '61', ara: '62', ast: '63', bal: '64', can: '65', cnt: '66', cle: '67',
+  clm: '68', cat: '69', ext: '70', gal: '71', mad: '72', mur: '73', nav: '74',
+  pva: '75', rio: '76', val: '77', ceu: '78', mel: '79',
+};
+
+function avisoAreaForINE(ine) {
+  return AREA_BY_CCAA[ccaaForINE(ine)] || '';
+}
+
+module.exports = {
+  inSpain: inSpain, nearestINE: nearestINE,
+  ccaaForINE: ccaaForINE, avisoAreaForINE: avisoAreaForINE,
+};

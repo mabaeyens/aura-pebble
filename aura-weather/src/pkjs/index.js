@@ -142,12 +142,17 @@ function refresh() {
     if (loc.ine && s.USE_AEMET && s.AEMET_KEY) {
       loc.aemetKey = s.AEMET_KEY;
       loc.ccaa = geo.ccaaForINE(loc.ine);
+      loc.avisoArea = geo.avisoAreaForINE(loc.ine);
       providers.fetchAEMET(loc, metric, function (w) {
-        // Overlay AEMET's official boletín on the generated bulletin (Spain); a
-        // failure leaves w.bulletin unset, so enrich() keeps the generated one.
-        providers.fetchBoletin(loc, function (txt) {
-          if (txt) w.bulletin = txt;
-          shipWith(loc)(w);
+        // Overlay AEMET's official CAP aviso and boletín on the derived ones
+        // (Spain). Each failure leaves the field unset, so enrich() keeps the
+        // worldwide derived aviso / generated bulletin.
+        providers.fetchAviso(loc, function (av) {
+          if (av && av.level) { w.alert_level = av.level; w.alert_label = av.label; }
+          providers.fetchBoletin(loc, function (txt) {
+            if (txt) w.bulletin = txt;
+            shipWith(loc)(w);
+          });
         });
       }, function (err) {
         console.log('Aura Weather: aemet failed (' + err + '), using open-meteo');

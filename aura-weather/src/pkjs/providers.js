@@ -4,6 +4,7 @@
 // See docs/01-data-bridge.md.
 
 var N = require('./normalise');
+var cap = require('./capaviso');
 
 var HOURS_N = 8;
 var DAYS_N = 6;
@@ -362,7 +363,45 @@ function fetchBoletin(loc, cb) {
     function () { national(); });
 }
 
+// ---- AEMET official CAP aviso (Spain, key required) ------------------------
+// The avisos_cap endpoint returns an envelope whose datos is a tar archive of
+// CAP XML warnings. capaviso.js does the untar + parse; here is the transport.
+// Everything short-circuits to cb(null) on failure, so the derived aviso stands:
+// a bad area code, an HTTP error, a gzip payload the sandbox cannot inflate, or
+// a parse slip all leave the worldwide threshold advisory in place.
+
+var AEMET_AVISO = 'https://opendata.aemet.es/opendata/api/avisos_cap/ultimoelaborado/area/';
+
+function xhrArrayBuffer(url, timeoutMs, onOk, onErr) {
+  var req = new XMLHttpRequest();
+  req.open('GET', url, true);
+  req.responseType = 'arraybuffer';
+  req.timeout = timeoutMs || 15000;
+  req.onload = function () {
+    if (req.status >= 200 && req.status < 300 && req.response) onOk(req.response);
+    else onErr('http ' + req.status);
+  };
+  req.onerror = function () { onErr('network'); };
+  req.ontimeout = function () { onErr('timeout'); };
+  req.send();
+}
+
+function fetchAviso(loc, cb) {
+  if (!loc.avisoArea) { cb(null); return; }
+  var key = encodeURIComponent(loc.aemetKey);
+  xhrJSON(AEMET_AVISO + loc.avisoArea + '?api_key=' + key, 15000, function (env) {
+    if (env.estado === 429 || !env.datos) { cb(null); return; }
+    xhrArrayBuffer(env.datos, 15000, function (buf) {
+      try {
+        var bytes = new Uint8Array(buf);
+        if (bytes.length < 2 || (bytes[0] === 0x1f && bytes[1] === 0x8b)) { cb(null); return; }
+        cb(cap.parseAvisoTar(bytes, Date.now()));   // null when no active warning
+      } catch (e) { cb(null); }
+    }, function () { cb(null); });
+  }, function () { cb(null); });
+}
+
 module.exports = {
   fetchOpenMeteo: fetchOpenMeteo, fetchAEMET: fetchAEMET, fetchAir: fetchAir,
-  fetchBoletin: fetchBoletin, condenseBoletin: condenseBoletin,
+  fetchBoletin: fetchBoletin, condenseBoletin: condenseBoletin, fetchAviso: fetchAviso,
 };
