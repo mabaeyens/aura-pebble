@@ -51,6 +51,12 @@ static CardCfg s_cfg;
 #define SHEET_NONE (-1)
 static int s_sheet = SHEET_NONE;
 
+// Golden/blue-hour windows (Phase C astronomy), derived on the watch from the
+// sun times it already holds. Golden hour is the low, warm ~hour just inside
+// each horizon crossing; blue hour the ~half-hour of civil twilight just outside.
+#define GOLDEN_SECS (60 * 60)
+#define BLUE_SECS   (30 * 60)
+
 static GFont s_font_xl;     // extra-large hero temperature
 static GFont s_font_big;    // large current temperature
 static GFont s_font_text;   // labels, hi/lo, location, weekday
@@ -500,7 +506,8 @@ static void draw_sunmoon(GContext *ctx, GRect b) {
   time_t now = time(NULL);
   bool night = is_night_at(now);
   int cx = b.origin.x + b.size.w / 2;
-  char buf[16];
+  char buf[24];
+  time_t sr = s_wx.sunrise, ss = s_wx.sunset;
 
   if (!night) {
     draw_text_in(ctx, "Daylight", s_font_text,
@@ -512,9 +519,21 @@ static void draw_sunmoon(GContext *ctx, GRect b) {
     graphics_context_set_stroke_width(ctx, 3);
     graphics_draw_arc(ctx, af, GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(-90), DEG_TO_TRIGANGLE(90));
 
+    // Golden-hour bands, one at each end of the daylight arc, drawn in chrome
+    // yellow over the track: the low warm light just after sunrise / before sunset.
+    if (ss > sr) {
+      int gfrac = (int)(GOLDEN_SECS * 100 / (ss - sr));
+      if (gfrac > 45) gfrac = 45;                              // keep the two bands apart
+      graphics_context_set_stroke_color(ctx, GColorChromeYellow);
+      graphics_draw_arc(ctx, af, GOvalScaleModeFitCircle,
+                        DEG_TO_TRIGANGLE(-90), DEG_TO_TRIGANGLE(-90 + 180 * gfrac / 100));
+      graphics_draw_arc(ctx, af, GOvalScaleModeFitCircle,
+                        DEG_TO_TRIGANGLE(90 - 180 * gfrac / 100), DEG_TO_TRIGANGLE(90));
+    }
+
     int prog = 0;
-    if (s_wx.sunset > s_wx.sunrise) {
-      prog = (int)((now - s_wx.sunrise) * 100 / (s_wx.sunset - s_wx.sunrise));
+    if (ss > sr) {
+      prog = (int)((now - sr) * 100 / (ss - sr));
       if (prog < 0) prog = 0;
       if (prog > 100) prog = 100;
     }
@@ -523,7 +542,21 @@ static void draw_sunmoon(GContext *ctx, GRect b) {
     graphics_context_set_fill_color(ctx, GColorYellow);
     graphics_fill_circle(ctx, sp, 7);
 
-    time_t sr = s_wx.sunrise, ss = s_wx.sunset;
+    // Golden-hour readout inside the arc: if in one now, when it ends; otherwise
+    // when the evening one begins.
+    if (ss > sr) {
+      bool in_gold = (now >= sr && now <= sr + GOLDEN_SECS) ||
+                     (now >= ss - GOLDEN_SECS && now <= ss);
+      const char *lab = in_gold ? "Golden hour, to" : "Golden hour, from";
+      time_t at = in_gold ? ((now <= sr + GOLDEN_SECS) ? sr + GOLDEN_SECS : ss)
+                          : ss - GOLDEN_SECS;
+      fmt_hhmm(buf, sizeof(buf), at);
+      draw_text_in(ctx, lab, s_font_small, GRect(b.origin.x, b.origin.y + 138, b.size.w, 16),
+                   in_gold ? GColorChromeYellow : GColorLightGray, GTextAlignmentCenter);
+      draw_text_in(ctx, buf, s_font_text, GRect(b.origin.x, b.origin.y + 154, b.size.w, 22),
+                   in_gold ? GColorChromeYellow : GColorWhite, GTextAlignmentCenter);
+    }
+
     fmt_hhmm(buf, sizeof(buf), sr);
     draw_text_in(ctx, buf, s_font_small, GRect(cx - r - 4, af.origin.y + 2 * r - 6, 52, 16),
                  GColorChromeYellow, GTextAlignmentLeft);
@@ -531,8 +564,12 @@ static void draw_sunmoon(GContext *ctx, GRect b) {
     draw_text_in(ctx, buf, s_font_small, GRect(cx + r - 48, af.origin.y + 2 * r - 6, 52, 16),
                  GColorOrange, GTextAlignmentRight);
   } else {
-    draw_text_in(ctx, "Moon", s_font_text,
-                 GRect(b.origin.x, b.origin.y + 8, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+    // Blue hour: the civil-twilight window just outside daylight, dawn or dusk.
+    bool blue = (ss > sr) && ((now >= ss && now <= ss + BLUE_SECS) ||
+                              (now >= sr - BLUE_SECS && now <= sr));
+    draw_text_in(ctx, blue ? "Blue hour" : "Moon", s_font_text,
+                 GRect(b.origin.x, b.origin.y + 8, b.size.w, 22),
+                 blue ? GColorPictonBlue : GColorWhite, GTextAlignmentCenter);
     draw_moon(ctx, GPoint(cx, b.origin.y + 84), 36, s_wx.moon_illum, s_wx.moon_phase < 4);
     draw_text_in(ctx, MOON_NAME[s_wx.moon_phase & 7], s_font_text,
                  GRect(b.origin.x, b.origin.y + 132, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
