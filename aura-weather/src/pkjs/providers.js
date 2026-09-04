@@ -32,11 +32,12 @@ function xhrJSON(url, timeoutMs, onOk, onErr) {
 function fetchOpenMeteo(loc, isMetric, onOk, onErr) {
   var url = 'https://api.open-meteo.com/v1/forecast'
     + '?latitude=' + loc.lat + '&longitude=' + loc.lon
-    + '&current=temperature_2m,relative_humidity_2m,weather_code'
-    + '&hourly=temperature_2m,weather_code,precipitation_probability'
-    + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset'
+    + '&current=temperature_2m,relative_humidity_2m,weather_code,apparent_temperature,'
+    +   'wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation'
+    + '&hourly=temperature_2m,weather_code,precipitation_probability,uv_index'
+    + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max,sunrise,sunset'
     + '&forecast_days=' + DAYS_N + '&timezone=auto&timeformat=unixtime'
-    + (isMetric ? '' : '&temperature_unit=fahrenheit');
+    + (isMetric ? '' : '&temperature_unit=fahrenheit&wind_speed_unit=mph');
 
   xhrJSON(url, 15000, function (j) {
     try { onOk(shape(j, loc, isMetric)); }
@@ -96,6 +97,15 @@ function shape(j, loc, isMetric) {
     code: N.wmoToCode(cur.weather_code),
     humidity: N.u8(cur.relative_humidity_2m),
     pop: hours[0].pop,                                  // current pop = next hour's
+    feels_like: N.i8(cur.apparent_temperature),
+    wind_speed: N.u8(cur.wind_speed_10m),
+    wind_dir: N.dir16(cur.wind_direction_10m),
+    wind_gust: N.u8(cur.wind_gusts_10m),
+    precip_mm: N.u8(cur.precipitation),
+    storm_prob: 0,                                      // no free thunderstorm-prob field
+    uv: N.u8((h.uv_index && h.uv_index[start]) || 0),
+    uv_peak: N.u8((d.uv_index_max && d.uv_index_max[0]) || 0),
+    aqi: 0,                                             // MITECO ICA is Spain-only, Phase B
     sunrise: (d.sunrise && d.sunrise[0]) || 0,
     sunset: (d.sunset && d.sunset[0]) || 0,
     is_metric: isMetric ? 1 : 0,
@@ -134,6 +144,23 @@ function fetchAEMET(loc, isMetric, onOk, onErr) {
 
 function toF(c, isMetric) { return isMetric ? c : Math.round(c * 9 / 5 + 32); }
 function pInt(s) { var n = parseInt(s, 10); return isNaN(n) ? 0 : n; }
+// AEMET reports wind in km/h; imperial users see mph.
+function windKmh(kmh, isMetric) { return isMetric ? kmh : Math.round(kmh * 0.621); }
+
+// Wind at hour `hh` from AEMET horaria, tolerating both the older `viento`
+// [{direccion, velocidad, periodo}] and the newer `vientoAndRachaMax`
+// [{direccion:[], velocidad:[], value (gust), periodo}] shapes.
+function windAt(day, hh) {
+  var arr = day.vientoAndRachaMax || day.viento || [];
+  for (var i = 0; i < arr.length; i++) {
+    if (arr[i].periodo !== hh) continue;
+    var v = arr[i];
+    var spd = Array.isArray(v.velocidad) ? v.velocidad[0] : v.velocidad;
+    var dir = Array.isArray(v.direccion) ? v.direccion[0] : v.direccion;
+    return { spd: pInt(spd), dir: dir, gust: pInt(v.value) };
+  }
+  return { spd: 0, dir: '', gust: 0 };
+}
 
 // Index an AEMET hourly array ({value, periodo}) by its two-digit hour periodo.
 function byHour(arr) {
@@ -221,7 +248,11 @@ function shapeAEMET(daily, hourly, loc, isMetric) {
     }
   }
 
+  var hh = ('0' + nowHour).slice(-2);
   var hum = byHour(hd[0].humedadRelativa);
+  var feels = byHour(hd[0].sensTermica);          // apparent temp, may be absent
+  var precip = byHour(hd[0].precipitacion);
+  var wind = windAt(hd[0], hh);
 
   return {
     ok: 1,
@@ -230,8 +261,17 @@ function shapeAEMET(daily, hourly, loc, isMetric) {
     tmin: days[0].min,
     tmax: days[0].max,
     code: hours[0].code,
-    humidity: N.u8(pInt(hum[('0' + nowHour).slice(-2)])),
+    humidity: N.u8(pInt(hum[hh])),
     pop: hours[0].pop,
+    feels_like: feels[hh] !== undefined ? N.i8(toF(pInt(feels[hh]), isMetric)) : hours[0].temp,
+    wind_speed: N.u8(windKmh(wind.spd, isMetric)),
+    wind_dir: N.dirAemet(wind.dir),
+    wind_gust: N.u8(windKmh(wind.gust, isMetric)),
+    precip_mm: N.u8(pInt(precip[hh])),
+    storm_prob: 0,
+    uv: N.u8(pInt(dd[0].uvMax)),
+    uv_peak: N.u8(pInt(dd[0].uvMax)),
+    aqi: 0,
     sunrise: hhmmToday(hd[0].orto),
     sunset: hhmmToday(hd[0].ocaso),
     is_metric: isMetric ? 1 : 0,

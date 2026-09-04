@@ -49,4 +49,26 @@ function u8(x) {
   return v;
 }
 
-module.exports = { wmoToCode: wmoToCode, aemetToCode: aemetToCode, i8: i8, u8: u8 };
+// Compass bearing in degrees -> 16-point index 0-15 (0 = N, clockwise). The
+// watch turns the index back into a needle angle and a cardinal label.
+function dir16(deg) {
+  var d = Number(deg);
+  if (isNaN(d)) return 0;
+  return (Math.round(((d % 360) + 360) % 360 / 22.5)) % 16;
+}
+
+// AEMET reports wind direction as a Spanish 8/16-point string ("N", "NE",
+// "SO", "NNO", "C" for calm) -> the same 16-point index.
+var AEMET_DIRS = {
+  N: 0, NNE: 1, NE: 2, ENE: 3, E: 4, ESE: 5, SE: 6, SSE: 7,
+  S: 8, SSO: 9, SO: 10, OSO: 11, O: 12, ONO: 13, NO: 14, NNO: 15, C: 0,
+};
+function dirAemet(s) {
+  var k = String(s || '').toUpperCase().trim();
+  return AEMET_DIRS[k] || 0;
+}
+
+module.exports = {
+  wmoToCode: wmoToCode, aemetToCode: aemetToCode, i8: i8, u8: u8,
+  dir16: dir16, dirAemet: dirAemet,
+};

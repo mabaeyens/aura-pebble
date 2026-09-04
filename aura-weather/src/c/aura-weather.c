@@ -388,6 +388,19 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     if ((tp = dict_find(iter, MESSAGE_KEY_WX_SUNSET)))  s_wx.sunset   = tp->value->int32;
     if ((tp = dict_find(iter, MESSAGE_KEY_WX_UNITS)))   s_wx.is_metric = tp->value->int32;
     if ((tp = dict_find(iter, MESSAGE_KEY_WX_UPDATED))) s_wx.updated  = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_FEELS)))   s_wx.feels_like  = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_WIND)))    s_wx.wind_speed  = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_WDIR)))    s_wx.wind_dir    = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_GUST)))    s_wx.wind_gust   = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_PRECIP)))  s_wx.precip_mm   = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_STORM)))   s_wx.storm_prob  = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_UV)))      s_wx.uv          = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_UVPEAK)))  s_wx.uv_peak     = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_AQI)))     s_wx.aqi         = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_MOON)))    s_wx.moon_phase  = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_MOONILL))) s_wx.moon_illum  = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_ALEVEL)))  s_wx.alert_level = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_WX_ALABEL)))  s_wx.alert_label = tp->value->int32;
     persist_save();
     layer_mark_dirty(s_canvas);
     return;
@@ -466,7 +479,7 @@ static void init(void) {
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
 
   app_message_register_inbox_received(inbox_received);
-  app_message_open(512, 64);   // inbox holds the current frame (name + ints) comfortably
+  app_message_open(768, 64);   // inbox holds the fuller current frame (name + 25 ints)
 }
 
 static void deinit(void) {

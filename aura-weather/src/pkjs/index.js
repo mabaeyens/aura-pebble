@@ -9,6 +9,7 @@ var Clay = require('pebble-clay');
 var clayConfig = require('./config');
 var providers = require('./providers');
 var geo = require('./geo');
+var derive = require('./derive');
 
 var clay = new Clay(clayConfig.config, clayConfig.customFn, { autoHandleEvents: false });
 
@@ -64,10 +65,16 @@ function resolveLocation(s, cb) {
 // daily frames, each sent only after the previous outbox_sent, so PebbleKit JS
 // never drops overlapping sends.
 function sendWeather(w) {
+  derive.enrich(w);   // moon phase + the derived aviso (kept if AEMET set an official one)
   var frames = [{
     WX_OK: 1, WX_NAME: w.name, WX_TEMP: w.temp, WX_TMIN: w.tmin, WX_TMAX: w.tmax,
     WX_CODE: w.code, WX_HUM: w.humidity, WX_POP: w.pop,
     WX_SUNRISE: w.sunrise, WX_SUNSET: w.sunset, WX_UNITS: w.is_metric, WX_UPDATED: w.updated,
+    WX_FEELS: w.feels_like, WX_WIND: w.wind_speed, WX_WDIR: w.wind_dir, WX_GUST: w.wind_gust,
+    WX_PRECIP: w.precip_mm, WX_STORM: w.storm_prob,
+    WX_UV: w.uv, WX_UVPEAK: w.uv_peak, WX_AQI: w.aqi,
+    WX_MOON: w.moon_phase, WX_MOONILL: w.moon_illum,
+    WX_ALEVEL: w.alert_level, WX_ALABEL: w.alert_label,
   }];
   for (var i = 0; i < HOURS_N; i++) {
     frames.push({ H_IDX: i, H_TEMP: w.hours[i].temp, H_CODE: w.hours[i].code, H_POP: w.hours[i].pop });
