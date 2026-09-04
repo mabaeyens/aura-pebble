@@ -28,6 +28,7 @@ enum {
 
 #define PKEY_WEATHER  1   // persist slot for the whole Weather struct
 #define PKEY_BULLETIN 2   // the bulletin text (kept out of the struct: persist caps at 256 B)
+#define PKEY_CARDS    3   // card visibility + boot preference (from Clay)
 
 // The generated / official forecast prose. Lives outside the persisted Weather
 // struct because that struct plus a ~256 B string would exceed persist's 256 B
@@ -37,6 +38,12 @@ static char s_bulletin[256];
 static Window    *s_window;
 static Layer     *s_canvas;
 static int        s_card = CARD_HERO;
+
+// Card configuration from Clay (docs/06): which cards the wearer keeps, and the
+// card the app boots on. Hero is always shown; aviso always shows when active
+// (a safety card, not user-hideable). Data gates still apply on top of `show`.
+typedef struct { uint8_t show[CARD_N]; uint8_t boot; } CardCfg;
+static CardCfg s_cfg;
 
 static GFont s_font_xl;     // extra-large hero temperature
 static GFont s_font_big;    // large current temperature
@@ -680,11 +687,16 @@ static void canvas_update(Layer *layer, GContext *ctx) {
 
 // ---- input + ticks ---------------------------------------------------------
 
-// A card shows only when it has something to say: the aviso needs an active
-// warning, the UV ring needs a day with some sun. The rest are always present.
+// A card shows only when it has something to say AND the wearer keeps it. Hero
+// is always on; the aviso always shows when a warning is active (a safety card,
+// not user-hideable). Everything else is gated first on its Clay toggle, then on
+// data: the aviso needs an active warning, UV a peak, air a reading, the bulletin
+// some text.
 static bool card_visible(int c) {
+  if (c == CARD_HERO)  return true;
+  if (c == CARD_AVISO) return s_wx.alert_level > 0;
+  if (c >= 0 && c < CARD_N && !s_cfg.show[c]) return false;
   switch (c) {
-    case CARD_AVISO:    return s_wx.alert_level > 0;
     case CARD_UV:       return s_wx.uv_peak > 0;
     case CARD_AIR:      return s_wx.aqi > 0;
     case CARD_BULLETIN: return s_bulletin[0] != '\0';
@@ -747,12 +759,43 @@ static void load_weather(void) {
   if (persist_exists(PKEY_BULLETIN)) {
     persist_read_string(PKEY_BULLETIN, s_bulletin, sizeof(s_bulletin));
   }
+
+  // Card config: every card shown, boot on the hero, until Clay says otherwise.
+  memset(&s_cfg, 1, sizeof(s_cfg));   // all show[] = 1
+  s_cfg.boot = CARD_HERO;
+  if (persist_exists(PKEY_CARDS) &&
+      persist_get_size(PKEY_CARDS) == (int)sizeof(s_cfg)) {
+    persist_read_data(PKEY_CARDS, &s_cfg, sizeof(s_cfg));
+  }
+  // Boot on the wearer's chosen card if it is currently visible, else the hero.
+  s_card = card_visible(s_cfg.boot) ? s_cfg.boot : CARD_HERO;
 }
 
 // ---- AppMessage inbox ------------------------------------------------------
 
 static void inbox_received(DictionaryIterator *iter, void *context) {
   Tuple *t;
+
+  // Card config frame (from Clay): visibility toggles + the boot card.
+  if ((t = dict_find(iter, MESSAGE_KEY_CFG))) {
+    Tuple *tp;
+    if ((tp = dict_find(iter, MESSAGE_KEY_SHOW_HOURLY)))   s_cfg.show[CARD_HOURLY]   = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_SHOW_DAILY)))    s_cfg.show[CARD_DAILY]    = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_SHOW_SUNMOON)))  s_cfg.show[CARD_SUNMOON]  = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_SHOW_WIND)))     s_cfg.show[CARD_WIND]     = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_SHOW_UV)))       s_cfg.show[CARD_UV]       = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_SHOW_AIR)))      s_cfg.show[CARD_AIR]      = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_SHOW_DETAILS)))  s_cfg.show[CARD_DETAILS]  = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_SHOW_BULLETIN))) s_cfg.show[CARD_BULLETIN] = tp->value->int32;
+    if ((tp = dict_find(iter, MESSAGE_KEY_CARD_BOOT))) {
+      int b = tp->value->int32;
+      s_cfg.boot = (b >= 0 && b < CARD_N) ? b : CARD_HERO;
+    }
+    persist_write_data(PKEY_CARDS, &s_cfg, sizeof(s_cfg));
+    if (!card_visible(s_card)) s_card = CARD_HERO;   // the open card may have just been hidden
+    layer_mark_dirty(s_canvas);
+    return;
+  }
 
   // Bulletin frame (its own message, sent last): the forecast prose.
   if ((t = dict_find(iter, MESSAGE_KEY_WX_BULL))) {

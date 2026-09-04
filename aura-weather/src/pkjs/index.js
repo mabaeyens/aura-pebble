@@ -64,9 +64,25 @@ function resolveLocation(s, cb) {
 // Chain the forecast to the watch: one current message, then the 8 hourly and 6
 // daily frames, each sent only after the previous outbox_sent, so PebbleKit JS
 // never drops overlapping sends.
+// The card-configuration frame from Clay: per-card visibility (default on) and
+// the boot card (a stable card index; default 0 = hero). Sent first so the watch
+// has the wearer's layout before it renders the forecast.
+function cardConfig(s) {
+  function on(k) { return s[k] === undefined ? 1 : (s[k] ? 1 : 0); }
+  var boot = parseInt(s.CARD_BOOT, 10);
+  return {
+    CFG: 1,
+    SHOW_HOURLY: on('SHOW_HOURLY'), SHOW_DAILY: on('SHOW_DAILY'),
+    SHOW_SUNMOON: on('SHOW_SUNMOON'), SHOW_WIND: on('SHOW_WIND'),
+    SHOW_UV: on('SHOW_UV'), SHOW_AIR: on('SHOW_AIR'),
+    SHOW_DETAILS: on('SHOW_DETAILS'), SHOW_BULLETIN: on('SHOW_BULLETIN'),
+    CARD_BOOT: isNaN(boot) ? 0 : boot,
+  };
+}
+
 function sendWeather(w) {
   derive.enrich(w);   // moon phase + the derived aviso (kept if AEMET set an official one)
-  var frames = [{
+  var frames = [cardConfig(readSettings()), {
     WX_OK: 1, WX_NAME: w.name, WX_TEMP: w.temp, WX_TMIN: w.tmin, WX_TMAX: w.tmax,
     WX_CODE: w.code, WX_HUM: w.humidity, WX_POP: w.pop,
     WX_SUNRISE: w.sunrise, WX_SUNSET: w.sunset, WX_UNITS: w.is_metric, WX_UPDATED: w.updated,

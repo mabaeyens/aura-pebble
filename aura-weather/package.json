@@ -74,7 +74,17 @@
       "SEARCH",
       "CITY",
       "USE_GPS",
-      "REFRESH"
+      "REFRESH",
+      "CFG",
+      "CARD_BOOT",
+      "SHOW_HOURLY",
+      "SHOW_DAILY",
+      "SHOW_SUNMOON",
+      "SHOW_WIND",
+      "SHOW_UV",
+      "SHOW_AIR",
+      "SHOW_DETAILS",
+      "SHOW_BULLETIN"
     ],
     "resources": {
       "media": [

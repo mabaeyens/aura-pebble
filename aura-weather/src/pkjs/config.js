@@ -57,6 +57,34 @@ var config = [
         "attributes": { "placeholder": "paste your key", "autocomplete": "off" } },
     ],
   },
+  {
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "Cards" },
+      { "type": "text",
+        "defaultValue": "Choose which cards to keep and where the app opens. The hero is always shown; the aviso appears only during a warning." },
+      { "type": "select", "messageKey": "CARD_BOOT", "label": "Open on", "defaultValue": "0",
+        "options": [
+          { "label": "Hero", "value": "0" },
+          { "label": "Hourly", "value": "2" },
+          { "label": "Daily", "value": "3" },
+          { "label": "Sun & Moon", "value": "4" },
+          { "label": "Wind", "value": "5" },
+          { "label": "UV", "value": "6" },
+          { "label": "Air quality", "value": "7" },
+          { "label": "Details", "value": "8" },
+          { "label": "Forecast", "value": "9" },
+        ] },
+      { "type": "toggle", "messageKey": "SHOW_HOURLY", "label": "Hourly", "defaultValue": true },
+      { "type": "toggle", "messageKey": "SHOW_DAILY", "label": "Daily", "defaultValue": true },
+      { "type": "toggle", "messageKey": "SHOW_SUNMOON", "label": "Sun & Moon", "defaultValue": true },
+      { "type": "toggle", "messageKey": "SHOW_WIND", "label": "Wind", "defaultValue": true },
+      { "type": "toggle", "messageKey": "SHOW_UV", "label": "UV", "defaultValue": true },
+      { "type": "toggle", "messageKey": "SHOW_AIR", "label": "Air quality", "defaultValue": true },
+      { "type": "toggle", "messageKey": "SHOW_DETAILS", "label": "Details", "defaultValue": true },
+      { "type": "toggle", "messageKey": "SHOW_BULLETIN", "label": "Forecast", "defaultValue": true },
+    ],
+  },
   { "type": "submit", "defaultValue": "Save" },
 ];
 
@@ -65,11 +93,16 @@ var config = [
 function customFn(minified) {
   var clayConfig = this;
 
-  clayConfig.on(clayConfig.EVENTS.AFTER_RENDER, function () {
+  // Clay 1.0.4 only fires BEFORE_BUILD / AFTER_BUILD; there is no AFTER_RENDER,
+  // and on(undefined, ...) throws and aborts the whole page (the bug that blanked
+  // the essential settings screen). Wire on AFTER_BUILD instead.
+  clayConfig.on(clayConfig.EVENTS.AFTER_BUILD, function () {
     var searchItem = clayConfig.getItemByMessageKey('SEARCH');
     if (!searchItem || !searchItem.$element) return;
 
-    var wrapper = searchItem.$element.get(0);
+    // The config page runs Clay's `minified` DOM helper, where the raw node is
+    // $element[0]; jQuery's .get(0) reads a property that is not there.
+    var wrapper = searchItem.$element[0];
     var box = document.createElement('div');
     box.style.margin = '0 0 6px 0';
     box.style.background = '#1b1b1b';
