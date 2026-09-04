@@ -68,7 +68,23 @@ function dirAemet(s) {
   return AEMET_DIRS[k] || 0;
 }
 
+// European AQI (0..100+) -> the 1-6 air-quality band the watch stores, which
+// lines up one-for-one with Spain's ICA categories (Good, Fair, Moderate, Poor,
+// Very poor, Extremely poor). null/absent -> 0 = no data, so no card shows; a
+// real 0 reading is clean air and still bands to 1.
+function aqiBand(v) {
+  if (v === null || v === undefined) return 0;
+  var n = Number(v);
+  if (isNaN(n) || n < 0) return 0;
+  if (n <= 20)  return 1;
+  if (n <= 40)  return 2;
+  if (n <= 60)  return 3;
+  if (n <= 80)  return 4;
+  if (n <= 100) return 5;
+  return 6;
+}
+
 module.exports = {
   wmoToCode: wmoToCode, aemetToCode: aemetToCode, i8: i8, u8: u8,
-  dir16: dir16, dirAemet: dirAemet,
+  dir16: dir16, dirAemet: dirAemet, aqiBand: aqiBand,
 };

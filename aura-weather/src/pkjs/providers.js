@@ -115,6 +115,21 @@ function shape(j, loc, isMetric) {
   };
 }
 
+// ---- air quality (worldwide, keyless) --------------------------------------
+// Open-Meteo's free Air Quality API gives a European AQI anywhere, the same
+// worldwide-floor bet as the weather itself. It is a separate host and call, so
+// it enriches the forecast after the main fetch and never blocks it: any failure
+// calls back 0 (no card). Spain's official MITECO station ICA can override this
+// later, exactly as AEMET overrides the weather.
+function fetchAir(loc, cb) {
+  var url = 'https://air-quality-api.open-meteo.com/v1/air-quality'
+    + '?latitude=' + loc.lat + '&longitude=' + loc.lon
+    + '&current=european_aqi&timezone=auto';
+  xhrJSON(url, 12000, function (j) {
+    cb(N.aqiBand(j && j.current ? j.current.european_aqi : null));
+  }, function () { cb(0); });
+}
+
 // ---- AEMET (Spain, key required) -------------------------------------------
 // Two-call model per endpoint: an envelope carrying a temporary `datos` URL,
 // then the payload at that URL (docs/01). Daily and hourly are separate
@@ -281,4 +296,4 @@ function shapeAEMET(daily, hourly, loc, isMetric) {
   };
 }
 
-module.exports = { fetchOpenMeteo: fetchOpenMeteo, fetchAEMET: fetchAEMET };
+module.exports = { fetchOpenMeteo: fetchOpenMeteo, fetchAEMET: fetchAEMET, fetchAir: fetchAir };

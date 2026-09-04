@@ -20,6 +20,7 @@ enum {
   CARD_SUNMOON,
   CARD_WIND,
   CARD_UV,
+  CARD_AIR,
   CARD_DETAILS,
   CARD_BULLETIN,
   CARD_N
@@ -193,6 +194,28 @@ static const char *uv_band(int uv) {
   if (uv <= 7)  return "High";
   if (uv <= 10) return "Very high";
   return "Extreme";
+}
+
+// Air-quality band 1-6 (European AQI / Spain's ICA) -> ramp colour and name.
+static GColor aqi_color(uint8_t band) {
+  switch (band) {
+    case 1:  return GColorGreen;              // good
+    case 2:  return GColorMediumSpringGreen;  // fair
+    case 3:  return GColorYellow;             // moderate
+    case 4:  return GColorOrange;             // poor
+    case 5:  return GColorRed;                // very poor
+    default: return GColorPurple;             // extremely poor
+  }
+}
+static const char *aqi_name(uint8_t band) {
+  switch (band) {
+    case 1:  return "Good";
+    case 2:  return "Fair";
+    case 3:  return "Moderate";
+    case 4:  return "Poor";
+    case 5:  return "Very poor";
+    default: return "Extremely poor";
+  }
 }
 
 static const char *MOON_NAME[8] = {
@@ -571,6 +594,29 @@ static void draw_uv(GContext *ctx, GRect b) {
                GColorLightGray, GTextAlignmentCenter);
 }
 
+// ---- air quality card: the ICA 1-6 band as a ring ---------------------------
+
+static void draw_air(GContext *ctx, GRect b) {
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+  draw_text_in(ctx, "Air quality", s_font_text,
+               GRect(b.origin.x, b.origin.y + 8, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+
+  int cx = b.origin.x + b.size.w / 2, cy = b.origin.y + 96, r = 50;
+  GRect rf = GRect(cx - r, cy - r, 2 * r, 2 * r);
+  int band = s_wx.aqi < 1 ? 1 : (s_wx.aqi > 6 ? 6 : s_wx.aqi);
+  GColor ac = aqi_color(band);
+  draw_ring(ctx, rf, 10, band * 100 / 6, GColorDarkGray, ac);   // 1..6 fills the ring in sixths
+
+  char buf[8];
+  snprintf(buf, sizeof(buf), "%d", band);
+  draw_text_in(ctx, buf, s_font_big, GRect(cx - 40, cy - 24, 80, 36), ac, GTextAlignmentCenter);
+  draw_text_in(ctx, aqi_name(band), s_font_text,
+               GRect(b.origin.x, cy + r + 6, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+  draw_text_in(ctx, "index 1-6", s_font_small,
+               GRect(b.origin.x, cy + r + 30, b.size.w, 16), GColorLightGray, GTextAlignmentCenter);
+}
+
 // ---- details card: the fields the hero omits, to stay calm ------------------
 
 static void detail_row(GContext *ctx, GRect b, int y, const char *label, const char *val, GColor vc) {
@@ -626,6 +672,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
     case CARD_SUNMOON:  draw_sunmoon(ctx, b);  break;
     case CARD_WIND:     draw_wind(ctx, b);     break;
     case CARD_UV:       draw_uv(ctx, b);       break;
+    case CARD_AIR:      draw_air(ctx, b);      break;
     case CARD_DETAILS:  draw_details(ctx, b);  break;
     case CARD_BULLETIN: draw_bulletin(ctx, b); break;
   }
@@ -639,6 +686,7 @@ static bool card_visible(int c) {
   switch (c) {
     case CARD_AVISO:    return s_wx.alert_level > 0;
     case CARD_UV:       return s_wx.uv_peak > 0;
+    case CARD_AIR:      return s_wx.aqi > 0;
     case CARD_BULLETIN: return s_bulletin[0] != '\0';
     default:            return true;
   }

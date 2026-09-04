@@ -95,8 +95,20 @@ function sendChain(frames, i) {
     function () { sendChain(frames, i + 1); });   // skip a dropped frame; next refresh heals it
 }
 
+// Fetch the European AQI for this location, attach it (0 = no station/no data,
+// leaves the air card hidden), then ship. Never blocks: fetchAir calls back 0 on
+// any failure, so a missing air feed never delays or blanks the forecast.
+function shipWith(loc) {
+  return function (w) {
+    providers.fetchAir(loc, function (aqi) {
+      if (aqi > 0) w.aqi = aqi;
+      sendWeather(w);
+    });
+  };
+}
+
 function openMeteo(loc, metric) {
-  providers.fetchOpenMeteo(loc, metric, sendWeather, function (err) {
+  providers.fetchOpenMeteo(loc, metric, shipWith(loc), function (err) {
     console.log('Aura Weather: open-meteo failed: ' + err);
     Pebble.sendAppMessage({ WX_OK: 0 });            // keep the persisted forecast on screen
   });
@@ -112,7 +124,7 @@ function refresh() {
     loc.ine = geo.nearestINE(loc.lat, loc.lon);
     if (loc.ine && s.USE_AEMET && s.AEMET_KEY) {
       loc.aemetKey = s.AEMET_KEY;
-      providers.fetchAEMET(loc, metric, sendWeather, function (err) {
+      providers.fetchAEMET(loc, metric, shipWith(loc), function (err) {
         console.log('Aura Weather: aemet failed (' + err + '), using open-meteo');
         openMeteo(loc, metric);
       });
