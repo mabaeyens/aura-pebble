@@ -190,7 +190,7 @@ static void draw_hero(GContext *ctx, GRect b) {
   if (warn) {
     GSize sz = graphics_text_layout_get_content_size(warn, s_font_small,
                  GRect(0, 0, tw, 20), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
-    int pw = sz.w + 18, ph = 18, pyy = Y + H * 72 / 100;
+    int pw = sz.w + 18, ph = 18, pyy = y_hilo + 25;   // 6px under the hi/lo row
     graphics_context_set_fill_color(ctx, GColorBlack);
     graphics_fill_rect(ctx, GRect(X, pyy, pw, ph), ph / 2, GCornersAll);
     draw_text_in(ctx, warn, s_font_small, GRect(X, pyy + 1, pw, 16),
