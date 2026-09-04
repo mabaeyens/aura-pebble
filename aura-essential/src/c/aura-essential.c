@@ -401,9 +401,13 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
   // Top block: solid colour + three complications.
   graphics_context_set_fill_color(ctx, top_bg);
   graphics_fill_rect(ctx, GRect(0, 0, w, band_y), 0, GCornerNone);
-  int cw = w / 3;
+  int cw = w / 3;   // cell width, for label wrapping
   for (int i = 0; i < 3; i++) {
-    draw_comp(ctx, s_slot[i], cw / 2 + i * cw, cw);
+    // Evenly distributed centres (w/6, w/2, 5w/6), rounded so the left and
+    // right edge margins stay equal. Plain cw/2 + i*cw truncated w/3 and dumped
+    // the ~2px remainder onto the right edge, shifting the whole group left.
+    int cx = (w * (2 * i + 1) + 3) / 6;
+    draw_comp(ctx, s_slot[i], cx, cw);
   }
 
   // Middle time band.
