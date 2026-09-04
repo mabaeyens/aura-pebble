@@ -184,6 +184,11 @@ static void fill_poly(GContext *ctx, const GPoint *pts, uint32_t n, GColor col) 
   GPath *p = gpath_create(&info);
   if (!p) return;
   graphics_context_set_fill_color(ctx, col);
+  // gpath_draw_filled omits the left boundary column, so a polygon whose left
+  // edge sits at x=0 leaves column 0 unpainted. Shift the whole path 1px left:
+  // the left edge moves off-screen (column 0 fills) and the right edge, already
+  // a pixel past the screen at L+W, still covers the last column.
+  gpath_move_to(p, GPoint(-1, 0));
   gpath_draw_filled(ctx, p);
   gpath_destroy(p);
 }
