@@ -110,13 +110,13 @@
           "type": "font",
           "name": "FONT_AURA_18",
           "file": "fonts/LiberationSans-Bold.ttf",
-          "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°%/,.: ]"
+          "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%/,.:();!' ]"
         },
         {
           "type": "font",
           "name": "FONT_AURA_14",
           "file": "fonts/LiberationSans-Bold.ttf",
-          "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°%/,.: ]"
+          "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%/,.:();!' ]"
         },
         {
           "type": "font",

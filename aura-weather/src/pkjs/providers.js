@@ -25,6 +25,21 @@ function xhrJSON(url, timeoutMs, onOk, onErr) {
   req.send();
 }
 
+// Same as xhrJSON but hands back the raw response text (the AEMET boletín datos
+// is a plain-text bulletin, not JSON).
+function xhrText(url, timeoutMs, onOk, onErr) {
+  var req = new XMLHttpRequest();
+  req.open('GET', url, true);
+  req.timeout = timeoutMs || 15000;
+  req.onload = function () {
+    if (req.status >= 200 && req.status < 300) onOk(req.responseText);
+    else onErr('http ' + req.status);
+  };
+  req.onerror = function () { onErr('network'); };
+  req.ontimeout = function () { onErr('timeout'); };
+  req.send();
+}
+
 // One Open-Meteo call gives current, hourly, daily and sun times. timeformat=
 // unixtime means sunrise/sunset and hourly.time come back as unix seconds, so no
 // fragile ISO-string date parsing in the sandbox. temperature_unit handles F/C
@@ -296,4 +311,58 @@ function shapeAEMET(daily, hourly, loc, isMetric) {
   };
 }
 
-module.exports = { fetchOpenMeteo: fetchOpenMeteo, fetchAEMET: fetchAEMET, fetchAir: fetchAir };
+// ---- AEMET official boletín (Spain, key required) --------------------------
+// The regional (autonomous-community) and national forecast bulletins are plain
+// text, so unlike the CAP aviso they parse cleanly in the sandbox. The regional
+// boletín replaces Aura's generated bulletin in Spain (docs/06 Phase C); the
+// national one is the fallback when the region has no code or no text. On any
+// failure the caller keeps the generated bulletin, so this never blanks the card.
+
+var AEMET_CCAA = 'https://opendata.aemet.es/opendata/api/prediccion/ccaa/hoy/';
+var AEMET_NAC  = 'https://opendata.aemet.es/opendata/api/prediccion/nacional/hoy';
+
+function aemetEnvelopeText(url, onOk, onErr) {
+  xhrJSON(url, 15000, function (env) {
+    if (env.estado === 429) { onErr('aemet 429'); return; }
+    if (!env.datos) { onErr('aemet estado ' + env.estado); return; }
+    xhrText(env.datos, 15000, onOk, onErr);
+  }, onErr);
+}
+
+// Condense a full AEMET bulletin into the ~220 chars the card holds: prefer the
+// PREDICCIÓN body, drop the "A.- ..." section markers, collapse whitespace, and
+// strip any character the bundled font subset cannot draw so nothing renders as
+// tofu (the font carries Spanish accents plus a little punctuation).
+function condenseBoletin(text) {
+  if (!text) return '';
+  var t = String(text);
+  // The forecast body is the "B.- PREDICCIÓN" section; the leading "PREDICCIÓN
+  // PARA LA COMUNIDAD ..." is only the title, so match the marker-prefixed form.
+  var m = t.match(/[A-Z]\.-\s*PREDICCI[ÓO]N[^\n]*\n([\s\S]*)/i);
+  var body = m ? m[1] : t;
+  body = body.replace(/^\s*[A-Z]\.-.*$/gm, ' ')            // "A.- ..." section markers
+             .replace(/^[^a-z\n]{6,}$/gm, ' ')             // ALL-CAPS header/date lines
+             .replace(/[^0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%\/,.:();!' -]/g, ' ')
+             .replace(/\s+/g, ' ')
+             .trim();
+  if (body.length > 220) body = body.slice(0, 217) + '...';
+  return body;
+}
+
+function fetchBoletin(loc, cb) {
+  var key = encodeURIComponent(loc.aemetKey);
+  function national() {
+    aemetEnvelopeText(AEMET_NAC + '?api_key=' + key,
+      function (txt) { cb(condenseBoletin(txt)); },
+      function () { cb(''); });
+  }
+  if (!loc.ccaa) { national(); return; }
+  aemetEnvelopeText(AEMET_CCAA + loc.ccaa + '?api_key=' + key,
+    function (txt) { var c = condenseBoletin(txt); if (c) cb(c); else national(); },
+    function () { national(); });
+}
+
+module.exports = {
+  fetchOpenMeteo: fetchOpenMeteo, fetchAEMET: fetchAEMET, fetchAir: fetchAir,
+  fetchBoletin: fetchBoletin, condenseBoletin: condenseBoletin,
+};

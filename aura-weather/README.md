@@ -17,7 +17,7 @@ A stack of cards, paged with UP and DOWN, with SELECT to force a refresh and BAC
 - **UV**: a ring from zero to today's peak in the WHO colour, the live index, and the band name (Low, Moderate, High, Very high, Extreme).
 - **Air quality**: the 1-6 air-quality band as a ring in its ramp colour with the category name (Good to Extremely poor). Worldwide it comes from Open-Meteo's European AQI; the band lines up with Spain's ICA scale. Shown only where there is a reading.
 - **Details**: feels-like, humidity, precipitation and gust, the fields the hero leaves off to stay calm.
-- **Forecast**: Aura's own plain-language summary of the day, written from the numbers so no card is ever an empty grid; in Spain an official AEMET boletin will replace it.
+- **Forecast**: Aura's own plain-language summary of the day, written from the numbers so no card is ever an empty grid; in Spain, with an AEMET key, the official AEMET boletin (your autonomous community's, or the national one) replaces it.
 
 The last forecast is persisted, so a card shows instantly on launch before the phone answers, and stays on screen if the phone is unreachable.
 

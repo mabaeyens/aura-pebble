@@ -141,7 +141,15 @@ function refresh() {
     loc.ine = geo.nearestINE(loc.lat, loc.lon);
     if (loc.ine && s.USE_AEMET && s.AEMET_KEY) {
       loc.aemetKey = s.AEMET_KEY;
-      providers.fetchAEMET(loc, metric, shipWith(loc), function (err) {
+      loc.ccaa = geo.ccaaForINE(loc.ine);
+      providers.fetchAEMET(loc, metric, function (w) {
+        // Overlay AEMET's official boletín on the generated bulletin (Spain); a
+        // failure leaves w.bulletin unset, so enrich() keeps the generated one.
+        providers.fetchBoletin(loc, function (txt) {
+          if (txt) w.bulletin = txt;
+          shipWith(loc)(w);
+        });
+      }, function (err) {
         console.log('Aura Weather: aemet failed (' + err + '), using open-meteo');
         openMeteo(loc, metric);
       });

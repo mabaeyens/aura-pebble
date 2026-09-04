@@ -31,4 +31,25 @@ function nearestINE(lat, lon) {
   return best;
 }
 
-module.exports = { inSpain: inSpain, nearestINE: nearestINE };
+// AEMET autonomous-community code by INE province (the first two digits of the
+// municipal INE code), for the official boletín endpoint (docs/06 Phase C). Index
+// 1-52 = province number; the value is AEMET's ccaa parameter. Best-effort: a
+// wrong code just fails the regional fetch, which falls back to the national
+// boletín and then to the generated bulletin, so it degrades safely.
+var CCAA_BY_PROV = [
+  '',                                                        // 0 unused
+  'pva', 'clm', 'val', 'and', 'cle', 'ext', 'bal', 'cat',    // 01-08
+  'cle', 'ext', 'and', 'val', 'clm', 'and', 'gal', 'clm',    // 09-16
+  'cat', 'and', 'clm', 'pva', 'and', 'ara', 'and', 'cle',    // 17-24
+  'cat', 'rio', 'gal', 'mad', 'and', 'mur', 'nav', 'gal',    // 25-32
+  'ast', 'cle', 'can', 'gal', 'cle', 'can', 'cnt', 'cle',    // 33-40
+  'and', 'cle', 'cat', 'ara', 'clm', 'val', 'cle', 'pva',    // 41-48
+  'cle', 'ara', 'ceu', 'mel',                                // 49-52
+];
+
+function ccaaForINE(ine) {
+  var p = parseInt(String(ine || '').slice(0, 2), 10);
+  return (p >= 1 && p <= 52) ? CCAA_BY_PROV[p] : '';
+}
+
+module.exports = { inSpain: inSpain, nearestINE: nearestINE, ccaaForINE: ccaaForINE };
