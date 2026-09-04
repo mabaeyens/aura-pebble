@@ -15,3 +15,6 @@ specs/
 
 # macOS
 .DS_Store
+
+# Obsidian vault config (local editor state)
+.obsidian/
