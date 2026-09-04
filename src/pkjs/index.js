@@ -46,14 +46,14 @@ function clayStyle() {
   // into the config page as a string, so it must stay self-contained: no
   // require, no closures over module scope). Debounced query against the keyless
   // Open-Meteo geocoder; a tap fills CITY / LAT / LON and turns GPS off.
-  clayConfig.on(clayConfig.EVENTS.AFTER_RENDER, function () {
+  clayConfig.on(clayConfig.EVENTS.AFTER_BUILD, function () {
     var searchItem = clayConfig.getItemByMessageKey('SEARCH');
     if (!searchItem || !searchItem.$element) { return; }
 
     var box = document.createElement('div');
     box.style.margin = '0 0 6px 0';
     box.style.background = '#171d27';
-    searchItem.$element.get(0).appendChild(box);
+    searchItem.$element[0].appendChild(box);   // minified list: [0] is the raw node (not jQuery .get(0))
 
     var timer = null;
 
