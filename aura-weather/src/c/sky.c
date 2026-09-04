@@ -28,15 +28,6 @@ static int32_t sin_pi_1000(int32_t frac_1000) {
   return s * 1000 / TRIG_MAX_RATIO;            // 0..1000
 }
 
-// Re-date a sunrise/sunset that may belong to a different calendar day onto the
-// day of `now`, so the arc is correct even if the persisted times are stale.
-static time_t redate(time_t t, time_t now) {
-  if (t == 0) return 0;
-  while (t - now >  SECS_PER_DAY / 2) t -= SECS_PER_DAY;
-  while (now - t >  SECS_PER_DAY / 2) t += SECS_PER_DAY;
-  return t;
-}
-
 SunState sun_compute(time_t now, time_t sunrise, time_t sunset, GRect sky) {
   SunState st = { .cx = 0, .cy = 0, .radius = BASE_SUN, .night = false, .alt = 100 };
 
@@ -44,26 +35,38 @@ SunState sun_compute(time_t now, time_t sunrise, time_t sunset, GRect sky) {
   int32_t y_1000  = 250;                     // normalised y (0 top, 1000 bottom)
   bool night = false;
 
-  sunrise = redate(sunrise, now);
-  sunset  = redate(sunset, now);
+  // Re-date sunrise and sunset onto now's calendar day as a coherent, ordered
+  // pair from their clock times, so a moment before sunrise or after sunset reads
+  // as night instead of collapsing the pair across midnight (which used to force
+  // a day sky all night long).
+  time_t sr = 0, ss = 0;
+  if (sunrise != 0 && sunset != 0) {
+    struct tm nt = *localtime(&now);
+    struct tm rt = *localtime(&sunrise);
+    struct tm a = nt; a.tm_hour = rt.tm_hour; a.tm_min = rt.tm_min; a.tm_sec = rt.tm_sec;
+    sr = mktime(&a);
+    struct tm st_ = *localtime(&sunset);
+    struct tm b = nt; b.tm_hour = st_.tm_hour; b.tm_min = st_.tm_min; b.tm_sec = st_.tm_sec;
+    ss = mktime(&b);
+  }
 
-  if (sunrise == 0 || sunset == 0 || sunset <= sunrise) {
+  if (sr == 0 || ss == 0 || ss <= sr) {
     // Missing or polar sun times: a neutral high-noon disc, day sky, no crash.
     fx_1000 = 500; alt_1000 = 1000;
     y_1000  = 800 - alt_1000 * 660 / 1000;   // y = 0.80 - alt*0.66
     night = false;
-  } else if (now >= sunrise && now <= sunset) {
+  } else if (now >= sr && now <= ss) {
     // Daytime: sun sweeps left(east) to right(west), high at noon.
-    fx_1000  = (int32_t)(now - sunrise) * 1000 / (sunset - sunrise);
+    fx_1000  = (int32_t)(now - sr) * 1000 / (ss - sr);
     alt_1000 = sin_pi_1000(fx_1000);
     y_1000   = 800 - alt_1000 * 660 / 1000;  // y = 0.80 - alt*0.66
     night = false;
   } else {
-    // Night: a gentler moon arc from sunset to the next sunrise.
+    // Night: a gentler moon arc from the previous sunset to the next sunrise.
     night = true;
     time_t prev_set, next_rise;
-    if (now < sunrise) { prev_set = sunset - SECS_PER_DAY; next_rise = sunrise; }
-    else               { prev_set = sunset;                next_rise = sunrise + SECS_PER_DAY; }
+    if (now < sr) { prev_set = ss - SECS_PER_DAY; next_rise = sr; }
+    else          { prev_set = ss;                next_rise = sr + SECS_PER_DAY; }
     int32_t span = (int32_t)(next_rise - prev_set);
     int32_t g_1000 = span > 0 ? (int32_t)(now - prev_set) * 1000 / span : 500;
     fx_1000  = g_1000;
@@ -248,6 +251,42 @@ static void draw_tree(GContext *ctx, int tx, int groundY, int fr,
   graphics_fill_circle(ctx, GPoint(tx, fy - fr * 40 / 100), fr);
 }
 
+// Static precipitation (no animation): streak/flake positions come from a small
+// hash of the cell so they scatter naturally and stay put between redraws.
+static void draw_rain(GContext *ctx, GRect r, int density, GColor col) {
+  graphics_context_set_stroke_color(ctx, col);
+  int stepx = (density >= 2) ? 12 : (density == 1 ? 18 : 26);   // heavy/med/light
+  int len   = (density >= 2) ? 11 : (density == 1 ? 9 : 7);
+  for (int x = r.origin.x - 6; x < r.origin.x + r.size.w; x += stepx) {
+    for (int y = r.origin.y - 4; y < r.origin.y + r.size.h; y += 20) {
+      int h = x * 31 + y * 17;
+      int px = x + (h % stepx), py = y + (h % 15);
+      graphics_draw_line(ctx, GPoint(px, py), GPoint(px - 3, py + len));  // slanted
+    }
+  }
+}
+
+static void draw_snow(GContext *ctx, GRect r, GColor col) {
+  graphics_context_set_fill_color(ctx, col);
+  for (int x = r.origin.x; x < r.origin.x + r.size.w; x += 22) {
+    for (int y = r.origin.y - 4; y < r.origin.y + r.size.h; y += 20) {
+      int h = x * 13 + y * 29;
+      graphics_fill_circle(ctx, GPoint(x + (h % 20), y + (h % 16)), 2);
+    }
+  }
+}
+
+// A lightning bolt in the upper sky, kept to the right so it clears the text.
+static void draw_bolt(GContext *ctx, GRect r) {
+  int bx = r.origin.x + r.size.w * 58 / 100;
+  int by = r.origin.y + r.size.h * 12 / 100;
+  GPoint bolt[] = {
+    {bx,      by},       {bx - 9, by + 22}, {bx - 1, by + 22},
+    {bx - 11, by + 44},  {bx + 8, by + 16}, {bx,     by + 16}, {bx + 8, by},
+  };
+  fill_poly(ctx, bolt, sizeof(bolt) / sizeof(bolt[0]), GColorYellow);
+}
+
 void scene_draw(GContext *ctx, GRect r, SunState s, uint8_t code) {
   int cover = (code >= WX_OVERCAST) ? 2 : (code == WX_CLOUDY ? 1 : 0);
   SceneColors c = scene_colors(s, cover);
@@ -300,4 +339,16 @@ void scene_draw(GContext *ctx, GRect r, SunState s, uint8_t code) {
 
   draw_tree(ctx, L + W * 19 / 100, top + band * 74 / 100, band * 13 / 100, sunx, cast, c);
   draw_tree(ctx, L + W * 80 / 100, top + band * 68 / 100, band * 20 / 100, sunx, cast, c);
+
+  // Precipitation in front of the scenery. Rain is a saturated blue by day and a
+  // pale blue at night; snow is white flakes; thunder adds a bolt over the rain.
+  GColor rain = s.night ? GColorCeleste : GColorVividCerulean;
+  switch (code) {
+    case WX_DRIZZLE: draw_rain(ctx, r, 0, rain); break;
+    case WX_RAIN:    draw_rain(ctx, r, 1, rain); break;
+    case WX_HEAVY:   draw_rain(ctx, r, 2, rain); break;
+    case WX_THUNDER: draw_rain(ctx, r, 2, rain); draw_bolt(ctx, r); break;
+    case WX_SNOW:    draw_snow(ctx, r, GColorWhite); break;
+    default: break;
+  }
 }
