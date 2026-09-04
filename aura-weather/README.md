@@ -6,7 +6,7 @@ Aura on iOS (`../../aura-apps`) and Android (`../../aura-android`) is a Spain-on
 
 ## What it does
 
-A stack of cards, paged with UP and DOWN, with SELECT to force a refresh and BACK to exit. Cards appear only when they have something to say (the aviso only during a warning, the UV ring only when the sun reaches a peak):
+A stack of cards, paged with UP and DOWN, with SELECT to force a refresh and BACK to exit. Holding SELECT on a card that has a scale (wind, UV, air quality) opens its reference sheet; any button closes it. Cards appear only when they have something to say (the aviso only during a warning, the UV ring only when the sun reaches a peak, the air card only where there is a reading), and you can hide any card and choose which one the app opens on from settings:
 
 - **Hero**: the current temperature and condition over the signature Aura background, the live sun (a moon at night) arcing over a day/night sky drawn procedurally from real sun times, with no baked art. Hi/lo and the location name sit under it, and a warning pill when an aviso is active.
 - **Aviso**: a colour-coded warning card in the four AEMET levels (verde, amarillo, naranja, rojo) with the phenomenon. Worldwide it shows a threshold advisory (storm, heavy rain, snow, wind, heat, cold, fog) derived from the numbers; in Spain an official AEMET aviso will override it. Shown only when a warning is active.
@@ -15,7 +15,9 @@ A stack of cards, paged with UP and DOWN, with SELECT to force a refresh and BAC
 - **Sun and Moon**: by day, a daylight arc with the sun riding sunrise to sunset and the times at the ends; after dark, the moon drawn at its real phase with the phase name and illumination.
 - **Wind**: a needle over a compass rose, coloured by the wind ramp, with the speed, the direction it blows from, and the gust.
 - **UV**: a ring from zero to today's peak in the WHO colour, the live index, and the band name (Low, Moderate, High, Very high, Extreme).
+- **Air quality**: the 1-6 air-quality band as a ring in its ramp colour with the category name (Good to Extremely poor). Worldwide it comes from Open-Meteo's European AQI; the band lines up with Spain's ICA scale. Shown only where there is a reading.
 - **Details**: feels-like, humidity, precipitation and gust, the fields the hero leaves off to stay calm.
+- **Forecast**: Aura's own plain-language summary of the day, written from the numbers so no card is ever an empty grid; in Spain an official AEMET boletin will replace it.
 
 The last forecast is persisted, so a card shows instantly on launch before the phone answers, and stays on screen if the phone is unreachable.
 
@@ -30,6 +32,7 @@ Open the settings screen from the Pebble phone app (it is built with [Clay](http
 - **Location**: type a city and pick from the worldwide search results, or turn on GPS, or type a latitude and longitude by hand.
 - **Units**: automatic (following the phone locale), Celsius or Fahrenheit.
 - **AEMET (Spain)**: optionally use AEMET instead of Open-Meteo in Spain, with your own free key.
+- **Cards**: choose which card the app opens on, and toggle any card off to keep the stack to what you want. The hero is always shown and the aviso always appears during a warning.
 
 ## Build
 

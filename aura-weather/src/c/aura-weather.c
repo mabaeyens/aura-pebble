@@ -45,6 +45,12 @@ static int        s_card = CARD_HERO;
 typedef struct { uint8_t show[CARD_N]; uint8_t boot; } CardCfg;
 static CardCfg s_cfg;
 
+// The scale cards (wind, UV, air) each open a reference sheet on a long SELECT
+// (Beaufort, WHO UV bands, the air-quality index), mirroring the iOS scale
+// sheets. -1 = no sheet open; otherwise the card whose sheet is showing.
+#define SHEET_NONE (-1)
+static int s_sheet = SHEET_NONE;
+
 static GFont s_font_xl;     // extra-large hero temperature
 static GFont s_font_big;    // large current temperature
 static GFont s_font_text;   // labels, hi/lo, location, weekday
@@ -669,8 +675,84 @@ static void draw_bulletin(GContext *ctx, GRect b) {
   draw_text_in(ctx, s, s_font_small, body, GColorWhite, GTextAlignmentLeft);
 }
 
+// ---- reference-scale sheets (docs/06) ---------------------------------------
+// A swatch + label + range per band, drawn as coloured rows in the card's own
+// ramp so the sheet reads as the same system. Opened by a long SELECT on a
+// scale card; any button closes it.
+
+typedef struct { GColor col; const char *label; const char *range; } ScaleRow;
+
+static bool sheet_card(int c) { return c == CARD_WIND || c == CARD_UV || c == CARD_AIR; }
+
+static void draw_scale_sheet(GContext *ctx, GRect b, const char *title,
+                             const ScaleRow *rows, int n) {
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+  draw_text_in(ctx, title, s_font_text, GRect(b.origin.x, b.origin.y + 6, b.size.w, 22),
+               GColorWhite, GTextAlignmentCenter);
+
+  int top = b.origin.y + 34;
+  int rh = (b.size.h - 42) / n;
+  if (rh > 30) rh = 30;
+  for (int i = 0; i < n; i++) {
+    int ry = top + i * rh;
+    graphics_context_set_fill_color(ctx, rows[i].col);
+    graphics_fill_rect(ctx, GRect(b.origin.x + 10, ry + 3, 16, rh - 7), 3, GCornersAll);
+    draw_text_in(ctx, rows[i].label, s_font_small,
+                 GRect(b.origin.x + 34, ry, b.size.w - 96, rh), GColorWhite, GTextAlignmentLeft);
+    draw_text_in(ctx, rows[i].range, s_font_small,
+                 GRect(b.origin.x, ry, b.size.w - 10, rh), GColorLightGray, GTextAlignmentRight);
+  }
+}
+
+static void draw_sheet_for(GContext *ctx, GRect b, int card) {
+  if (card == CARD_WIND) {
+    // The wind ramp, as Beaufort-style bands (km/h, the ramp's native unit).
+    ScaleRow rows[] = {
+      { GColorMediumSpringGreen, "Calm / light", "0-11" },
+      { GColorRajah,             "Moderate",     "12-38" },
+      { GColorOrange,            "Fresh / strong", "39-61" },
+      { GColorRed,               "Gale+",        "62+ km/h" },
+    };
+    draw_scale_sheet(ctx, b, "Wind scale", rows, 4);
+  } else if (card == CARD_UV) {
+    ScaleRow rows[] = {
+      { GColorGreen,  "Low",       "0-2" },
+      { GColorYellow, "Moderate",  "3-5" },
+      { GColorOrange, "High",      "6-7" },
+      { GColorRed,    "Very high", "8-10" },
+      { GColorPurple, "Extreme",   "11+" },
+    };
+    draw_scale_sheet(ctx, b, "UV index (WHO)", rows, 5);
+  } else {
+    ScaleRow rows[] = {
+      { GColorGreen,             "Good",            "1" },
+      { GColorMediumSpringGreen, "Fair",            "2" },
+      { GColorYellow,            "Moderate",        "3" },
+      { GColorOrange,            "Poor",            "4" },
+      { GColorRed,               "Very poor",       "5" },
+      { GColorPurple,            "Extremely poor",  "6" },
+    };
+    draw_scale_sheet(ctx, b, "Air quality index", rows, 6);
+  }
+}
+
+// A small chevron at the card's foot, hinting a long SELECT opens the scale sheet.
+static void draw_hold_hint(GContext *ctx, GRect b) {
+  int cx = b.origin.x + b.size.w / 2, y = b.origin.y + b.size.h - 12;
+  GPoint pts[3] = { { cx - 5, y }, { cx + 5, y }, { cx, y + 5 } };
+  GPathInfo info = { 3, pts };
+  GPath *p = gpath_create(&info);
+  if (p) {
+    graphics_context_set_fill_color(ctx, GColorDarkGray);
+    gpath_draw_filled(ctx, p);
+    gpath_destroy(p);
+  }
+}
+
 static void canvas_update(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
+  if (s_sheet != SHEET_NONE) { draw_sheet_for(ctx, b, s_sheet); return; }
   switch (s_card) {
     case CARD_HERO:     draw_hero(ctx, b);     break;
     case CARD_AVISO:    draw_aviso(ctx, b);    break;
@@ -683,6 +765,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
     case CARD_DETAILS:  draw_details(ctx, b);  break;
     case CARD_BULLETIN: draw_bulletin(ctx, b); break;
   }
+  if (sheet_card(s_card)) draw_hold_hint(ctx, b);   // "hold SELECT for the scale"
 }
 
 // ---- input + ticks ---------------------------------------------------------
@@ -714,16 +797,37 @@ static void card_step(int dir) {
   layer_mark_dirty(s_canvas);
 }
 
-static void up_click(ClickRecognizerRef r, void *ctx)   { card_step(-1); }
-static void down_click(ClickRecognizerRef r, void *ctx) { card_step(1); }
+static void close_sheet(void) { s_sheet = SHEET_NONE; layer_mark_dirty(s_canvas); }
+
+static void up_click(ClickRecognizerRef r, void *ctx) {
+  if (s_sheet != SHEET_NONE) { close_sheet(); return; }
+  card_step(-1);
+}
+static void down_click(ClickRecognizerRef r, void *ctx) {
+  if (s_sheet != SHEET_NONE) { close_sheet(); return; }
+  card_step(1);
+}
 static void select_click(ClickRecognizerRef r, void *ctx) {
+  if (s_sheet != SHEET_NONE) { close_sheet(); return; }
   request_refresh();
   layer_mark_dirty(s_canvas);
+}
+// A long SELECT on a scale card opens its reference sheet (touch tap on device).
+static void select_long(ClickRecognizerRef r, void *ctx) {
+  if (s_sheet == SHEET_NONE && sheet_card(s_card)) { s_sheet = s_card; layer_mark_dirty(s_canvas); }
+}
+// BACK is subscribed (so it can close an open sheet), so it must pop the window
+// itself to keep exiting the app when no sheet is open.
+static void back_click(ClickRecognizerRef r, void *ctx) {
+  if (s_sheet != SHEET_NONE) { close_sheet(); return; }
+  window_stack_pop(true);
 }
 static void click_config(void *ctx) {
   window_single_click_subscribe(BUTTON_ID_UP, up_click);
   window_single_click_subscribe(BUTTON_ID_DOWN, down_click);
   window_single_click_subscribe(BUTTON_ID_SELECT, select_click);
+  window_single_click_subscribe(BUTTON_ID_BACK, back_click);
+  window_long_click_subscribe(BUTTON_ID_SELECT, 0, select_long, NULL);
 }
 
 static void tick_handler(struct tm *t, TimeUnits units) {
