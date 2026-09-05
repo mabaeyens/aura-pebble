@@ -8,7 +8,7 @@ Everything needed to submit Aura Weather as a new **watchapp** on the Pebble dev
 | --- | --- |
 | Title | Aura Weather |
 | UUID | `fce83b9e-37bc-4714-9125-840d83a72d64` |
-| Version | 1.0.0 |
+| Version | 1.1.0 |
 | Category | Tools & Utilities (it is a weather app; pick the closest available at submission time) |
 | Source code | https://github.com/mabaeyens/aura-pebble |
 | Support | https://askmira.es/aura/support (the same support page as the iOS and Android apps) |
@@ -28,9 +28,15 @@ It fetches its own weather on the phone through Open-Meteo, worldwide, with no a
 
 Free and open source.
 
-## What is new in 1.0.0
+## What is new in 1.1.0
 
-First public release. The full card deck, worldwide Open-Meteo data with optional AEMET in Spain, the dashboard hero with its time-of-day sky, and a light theme you can toggle on the watch or from settings.
+A new home screen. The hero is now a dashboard: your location and the temperature over a strip of time-of-day sky, with the four numbers I reach for first, wind, UV, humidity and how it really feels, laid out in a grid beneath and tinted by Aura's own ramps.
+
+I also went through the light theme card by card so nothing hides on a white background: the tinted numbers now carry a soft outline, the wind needle stands clear of its dial, and the daylight arc keeps its colour. Type is a little larger across the deck, and the hourly and daily cards now scroll through a matching six rows each.
+
+## What was new in 1.0.0
+
+First public release. The full card deck, worldwide Open-Meteo data with optional AEMET in Spain, the sun-over-sky hero, and a light theme you can toggle on the watch or from settings.
 
 ## Icons
 
@@ -90,4 +96,4 @@ The single upload is the built bundle at `../../build/aura-weather.pbw` (run `pe
 7. Upload `aura-weather.pbw`.
 8. Submit. There is no documented human review gate; the listing goes live once the assets and the `.pbw` are in.
 
-The screenshots and this listing were prepared from the 1.0.0 build; regenerate the shots if the UI changes before you submit.
+The screenshots and this listing were prepared from the 1.1.0 build; regenerate the shots if the UI changes before you submit.
