@@ -22,6 +22,14 @@ The Essential face on the Pebble Time 2 emulator, in five of its themes (every b
 
 Aura Essential is live on the Pebble appstore at [apps.repebble.com/aura-essential](https://apps.repebble.com/aura-essential_19335d2e746b4d6aa6ba8c63). Install it straight to a Pebble Time 2 from the Pebble phone app.
 
+## Aura Weather (watchapp)
+
+Aura Weather is a standalone weather watchapp, not a face: a paged deck of cards you page through with the up and down buttons, every card optional and reorderable from its settings. The phone fetches live weather over the JS bridge (Open-Meteo worldwide with no API key, plus an AEMET path for Spain) and the watch renders each card natively in Aura's colour language at 200×228. It runs on its own, with no companion app on the phone.
+
+![Current conditions](aura-weather/docs/store/weather-hero.png) ![Hourly forecast](aura-weather/docs/store/weather-hourly.png) ![Daily forecast](aura-weather/docs/store/weather-daily.png) ![Sun and moon](aura-weather/docs/store/weather-sun.png) ![Wind](aura-weather/docs/store/weather-wind.png) ![UV index](aura-weather/docs/store/weather-uv.png) ![Air quality](aura-weather/docs/store/weather-air.png) ![Details](aura-weather/docs/store/weather-details.png) ![Aviso](aura-weather/docs/store/weather-aviso.png)
+
+The hero card leads with the current conditions over a time-of-day sky: a big temperature, a plain-language forecast sentence, and the wind read as words, the way the phone and watch apps say it. The cards that follow, in their default order: the hourly forecast, the multi-day forecast, sun and moon (sunrise and sunset with the golden-hour and blue-hour windows by day, or the moon phase and illumination at night), wind on a compass rose, the UV index, air quality on the 1-6 European index, and a details card (feels-like, humidity, precipitation and gust). The scale cards (wind, UV, air, details) open an Aura colour legend on a long press of the select button. In Spain an aviso card carries the official AEMET warning when one is live, and a forecast card carries the full AEMET boletin.
+
 ## Build and run
 
 Needs the Pebble SDK (`pebble-tool`, installed with [`uv`](https://docs.astral.sh/uv/)):

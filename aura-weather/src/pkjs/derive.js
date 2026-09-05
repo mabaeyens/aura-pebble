@@ -80,33 +80,17 @@ function windWord(kmh) {
 }
 
 // Aura's own plain-language forecast, written from the numbers so every wearer
-// gets words, not a bare grid (docs/06). Calm and true: current condition and
-// feel, the wind, today's range, and one notable line (rain/snow/storm, or high
-// UV). Kept under ~200 chars; an official AEMET boletin overrides it in Spain.
+// gets words, not a bare grid (docs/06). This is the hero headline now, so it
+// stays short and fits two lines: current condition and feel, then today's
+// range. Wind reads as its own hero line, and rain/snow/storm/UV each have their
+// own card or the aviso, so they are not repeated here. An official AEMET boletin
+// (long) overrides this in Spain and keeps its own Forecast card.
 function bulletin(w) {
   var metric = w.is_metric === 1;
   var tempC = toC(w.temp, metric);
   var deg = '°';
-  var parts = [];
-
-  parts.push((COND[w.code] || 'Mixed') + ', ' + feelWord(tempC) + ' at ' + w.temp + deg + '.');
-
-  var kmh = toKmh(w.wind_speed, metric);
-  var ww = windWord(kmh);
-  if (ww) parts.push(ww + ' ' + (DIR[w.wind_dir & 15]) + ' wind.');
-
-  parts.push('High ' + w.tmax + deg + ', low ' + w.tmin + deg + '.');
-
-  // One notable, in priority order, so the line ends on what matters most.
-  var todayPop = (w.days && w.days[0]) ? w.days[0].pop : w.pop;
-  if (w.code === WX.THUNDER || w.storm_prob >= 50) parts.push('Storms about.');
-  else if (w.code === WX.SNOW)                     parts.push('Snow expected.');
-  else if (w.code === WX.HEAVY || w.precip_mm >= 5 || todayPop >= 60) parts.push('Rain likely.');
-  else if (w.uv_peak >= 8)                         parts.push('Very high UV midday.');
-  else if (w.uv_peak >= 6)                         parts.push('High UV midday.');
-
-  var s = parts.join(' ');
-  return s.length > 200 ? s.slice(0, 199) : s;
+  return (COND[w.code] || 'Mixed') + ', ' + feelWord(tempC) + ' at ' + w.temp + deg
+       + '. High ' + w.tmax + deg + ', low ' + w.tmin + deg + '.';
 }
 
 // Fill moon_* always; fill the derived aviso and the generated bulletin only when

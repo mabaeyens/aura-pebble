@@ -26,6 +26,10 @@ enum {
   CARD_N
 };
 
+// Above this many characters, the forecast text is too long for the hero's two
+// lines, so the standalone Forecast card is kept to carry it (the AEMET boletin).
+#define HERO_FORECAST_MAX 72
+
 #define PKEY_WEATHER  1   // persist slot for the whole Weather struct
 #define PKEY_BULLETIN 2   // the bulletin text (kept out of the struct: persist caps at 256 B)
 #define PKEY_CARDS    3   // card visibility + boot preference (from Clay)
@@ -73,14 +77,32 @@ static void request_refresh(void);
 
 // ---- colour + glyph helpers (weather.h) ------------------------------------
 
+// Temperature ramp, the 64-colour re-encoding of AuraKit Palette.swift `tempStops`
+// (violet -> blue -> teal -> green -> yellow -> orange -> red -> maroon, green/
+// yellow hand-off at 20 C). Kept in step with the phone so a colour means the
+// same temperature on every Aura surface; the exact stops live in docs/PALETTE.md.
 GColor temp_color(int temp, bool is_metric) {
   int c = is_metric ? temp : (temp - 32) * 5 / 9;   // tint by real feel, not unit
-  if (c <  0) return GColorIndigo;          // freezing: cold violet
-  if (c < 12) return GColorPictonBlue;      // cold: blue
-  if (c < 22) return GColorMediumSpringGreen; // mild: the Aura accent green
-  if (c < 31) return GColorRajah;           // warm: yellow/orange
-  return GColorSunsetOrange;                // hot: red (readable stand-in for maroon)
+  if (c < -4) return GColorIndigo;              // deep cold: violet
+  if (c <  2) return GColorLiberty;             // very cold: blue-violet
+  if (c <  8) return GColorBlueMoon;            // cold: blue
+  if (c < 13) return GColorTiffanyBlue;         // cool: cyan-teal
+  if (c < 17) return GColorMalachite;           // fresh: green-teal
+  if (c < 20) return GColorGreen;               // mild: the Aura accent green
+  if (c < 23) return GColorInchworm;            // warm: green-yellow
+  if (c < 26) return GColorYellow;              // yellow
+  if (c < 29) return GColorChromeYellow;        // amber
+  if (c < 32) return GColorOrange;              // orange
+  if (c < 35) return GColorSunsetOrange;        // red-orange
+  if (c < 39) return GColorRed;                 // red
+  if (c < 43) return GColorDarkCandyAppleRed;   // dark red
+  return GColorBulgarianRose;                   // extreme heat: deep maroon
 }
+// The temperature ramp as an ordered swatch list (cold -> hot), for legend bars.
+static const GColor TEMP_RAMP[9] = {
+  GColorIndigo, GColorBlueMoon, GColorTiffanyBlue, GColorGreen, GColorInchworm,
+  GColorYellow, GColorOrange, GColorRed, GColorBulgarianRose,
+};
 
 const char *wx_glyph(uint8_t code, bool night) {
   switch (code) {
@@ -194,22 +216,37 @@ static const char *CARD16[16] = {
   "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",
 };
 
-// Wind ramp (compare in km/h): light / moderate / strong / gale.
+// Wind ramp (compare in km/h): the 64-colour re-encoding of Palette.swift
+// `windStops` (the Windy ramp, calm pale-blue -> teal -> green -> yellow ->
+// orange -> red -> storm violet). Band edges track the Beaufort forces.
 static GColor wind_color(int kmh) {
-  if (kmh < 12) return GColorMediumSpringGreen;
-  if (kmh < 39) return GColorRajah;             // yellow
-  if (kmh < 62) return GColorOrange;
-  return GColorRed;
+  if (kmh < 12)  return GColorCeleste;          // calm
+  if (kmh < 20)  return GColorMediumAquamarine; // light
+  if (kmh < 29)  return GColorGreen;            // moderate
+  if (kmh < 39)  return GColorYellow;           // fresh
+  if (kmh < 50)  return GColorOrange;           // strong
+  if (kmh < 62)  return GColorSunsetOrange;     // very strong
+  if (kmh < 89)  return GColorRed;              // gale
+  if (kmh < 118) return GColorPurpureus;        // storm
+  return GColorVividViolet;                     // violent
 }
+// The wind ramp as an ordered swatch list, for the legend bar and scale sheet.
+static const GColor WIND_RAMP[8] = {
+  GColorCeleste, GColorMediumAquamarine, GColorGreen, GColorYellow,
+  GColorOrange, GColorSunsetOrange, GColorRed, GColorVividViolet,
+};
 
-// WHO UV bands and their ramp colours.
+// WHO UV bands and their ramp colours (Palette.swift `UVBands`).
 static GColor uv_color(int uv) {
   if (uv <= 2)  return GColorGreen;
   if (uv <= 5)  return GColorYellow;
   if (uv <= 7)  return GColorOrange;
   if (uv <= 10) return GColorRed;
-  return GColorPurple;                          // extreme (violet)
+  return GColorVividViolet;                      // extreme (violet)
 }
+static const GColor UV_RAMP[5] = {
+  GColorGreen, GColorYellow, GColorOrange, GColorRed, GColorVividViolet,
+};
 static const char *uv_band(int uv) {
   if (uv <= 2)  return "Low";
   if (uv <= 5)  return "Moderate";
@@ -218,17 +255,23 @@ static const char *uv_band(int uv) {
   return "Extreme";
 }
 
-// Air-quality band 1-6 (European AQI / Spain's ICA) -> ramp colour and name.
+// Air-quality band 1-6, Spain's MITECO ICA / European index. MITECO reads
+// blue = best down to violet = worst (the inverse of the WHO green-at-1
+// convention), matching Palette.swift `airQuality` so the phone and watch agree.
 static GColor aqi_color(uint8_t band) {
   switch (band) {
-    case 1:  return GColorGreen;              // good
-    case 2:  return GColorMediumSpringGreen;  // fair
-    case 3:  return GColorYellow;             // moderate
-    case 4:  return GColorOrange;             // poor
-    case 5:  return GColorRed;                // very poor
-    default: return GColorPurple;             // extremely poor
+    case 1:  return GColorVividCerulean;      // good (azul)
+    case 2:  return GColorGreen;              // fair (verde)
+    case 3:  return GColorYellow;             // moderate (amarillo)
+    case 4:  return GColorRed;                // poor (rojo)
+    case 5:  return GColorDarkCandyAppleRed;  // very poor (granate)
+    default: return GColorVividViolet;        // extremely poor (violeta)
   }
 }
+static const GColor AQI_RAMP[6] = {
+  GColorVividCerulean, GColorGreen, GColorYellow,
+  GColorRed, GColorDarkCandyAppleRed, GColorVividViolet,
+};
 static const char *aqi_name(uint8_t band) {
   switch (band) {
     case 1:  return "Good";
@@ -256,6 +299,48 @@ static void draw_ring(GContext *ctx, GRect frame, int thickness, int pct,
     graphics_fill_radial(ctx, frame, GOvalScaleModeFitCircle, thickness,
                          0, TRIG_MAX_ANGLE * pct / 100);
   }
+}
+
+// The uppercase, dimmed section label at the top of a card (the phone's
+// "HOURLY FORECAST" idiom). Pass an already-uppercased title; returns the y at
+// which the card body should begin.
+#define CARD_HEADER_H 26
+static int draw_card_header(GContext *ctx, GRect b, const char *title) {
+  draw_text_in(ctx, title, s_font_small, GRect(b.origin.x, b.origin.y + 6, b.size.w, 16),
+               GColorLightGray, GTextAlignmentCenter);
+  return b.origin.y + CARD_HEADER_H;
+}
+
+// The Aura "value on a continuous ramp" legend: a horizontal band of the scale's
+// colours with a white marker triangle at the current value's fraction. The one
+// device that teaches every coloured number the same way (Palette.swift
+// AuraScaleBar). `num/den` is the marker fraction, clamped to the bar.
+static void draw_ramp_bar(GContext *ctx, GRect bar, const GColor *cols, int n,
+                          int num, int den) {
+  for (int i = 0; i < n; i++) {
+    int x0 = bar.origin.x + bar.size.w * i / n;
+    int x1 = bar.origin.x + bar.size.w * (i + 1) / n;
+    graphics_context_set_fill_color(ctx, cols[i]);
+    graphics_fill_rect(ctx, GRect(x0, bar.origin.y, x1 - x0, bar.size.h), 0, GCornerNone);
+  }
+  graphics_context_set_stroke_color(ctx, GColorLightGray);
+  graphics_draw_rect(ctx, bar);
+
+  if (den <= 0) return;
+  int f = num < 0 ? 0 : (num > den ? den : num);
+  int mx = bar.origin.x + bar.size.w * f / den;
+  if (mx < bar.origin.x + 1) mx = bar.origin.x + 1;
+  if (mx > bar.origin.x + bar.size.w - 1) mx = bar.origin.x + bar.size.w - 1;
+  GPoint tri[3] = { { mx - 4, bar.origin.y - 6 }, { mx + 4, bar.origin.y - 6 }, { mx, bar.origin.y } };
+  GPathInfo info = { 3, tri };
+  GPath *p = gpath_create(&info);
+  if (p) {
+    graphics_context_set_fill_color(ctx, GColorWhite);
+    gpath_draw_filled(ctx, p);
+    gpath_destroy(p);
+  }
+  graphics_context_set_stroke_color(ctx, GColorWhite);
+  graphics_draw_line(ctx, GPoint(mx, bar.origin.y), GPoint(mx, bar.origin.y + bar.size.h - 1));
 }
 
 static int isqrt_i(int v) {
@@ -334,7 +419,8 @@ static void draw_hero(GContext *ctx, GRect b) {
   int y_loc  = Y +  6;   // location -> glyphs 10..28
   int y_temp = Y + 21;   // big temp -> digits 35..69
   int y_sum  = Y + 72;   // summary  -> glyphs 76..90
-  int y_hilo = Y + 93;   // hi/lo    -> glyphs 97..111
+  int y_fc   = Y + 94;   // forecast sentence (replaces the old hi/lo)
+  int y_wind = Y + 132;  // wind, folded into prose like the phone dataline
 
   // Location, top-left, small.
   draw_text_halo(ctx, s_wx.name, s_font_text, GRect(X, y_loc, tw, 20),
@@ -349,13 +435,24 @@ static void draw_hero(GContext *ctx, GRect b) {
   draw_text_halo(ctx, wx_summary(s_wx.code), s_font_text,
                  GRect(X, y_sum, tw, 22), GColorWhite, GTextAlignmentLeft);
 
-  // Hi / lo dataline below the summary.
+  // Plain-language forecast where the hi/lo used to be (the phone's headline
+  // sentence). Two lines; a long AEMET boletin overflows here and keeps its own
+  // Forecast card (card_visible gates it on length). Falls back to a staleness
+  // note before any data arrives.
   if (s_wx.updated == 0) {
-    draw_text_halo(ctx, "no data", s_font_small, GRect(X, y_hilo + 1, tw, 16),
+    draw_text_halo(ctx, "no data", s_font_small, GRect(X, y_fc + 1, tw, 16),
                    GColorLightGray, GTextAlignmentLeft);
-  } else {
-    snprintf(buf, sizeof(buf), "%d\xC2\xB0 / %d\xC2\xB0", s_wx.tmax, s_wx.tmin);
-    draw_text_halo(ctx, buf, s_font_text, GRect(X, y_hilo, tw, 20),
+  } else if (s_bulletin[0]) {
+    draw_text_halo(ctx, s_bulletin, s_font_small, GRect(X, y_fc, tw, 34),
+                   GColorWhite, GTextAlignmentLeft);
+  }
+
+  // Wind as prose on the dataline, like the iPhone and Watch apps: words and
+  // numbers, no symbol. e.g. "Wind from SW 12 km/h".
+  if (s_wx.updated != 0) {
+    snprintf(buf, sizeof(buf), "Wind from %s %d %s", CARD16[s_wx.wind_dir & 15],
+             s_wx.wind_speed, s_wx.is_metric ? "km/h" : "mph");
+    draw_text_halo(ctx, buf, s_font_small, GRect(X, y_wind, tw, 16),
                    GColorWhite, GTextAlignmentLeft);
   }
 
@@ -366,7 +463,7 @@ static void draw_hero(GContext *ctx, GRect b) {
     const char *warn = alert_word(s_wx.alert_label);
     GSize sz = graphics_text_layout_get_content_size(warn, s_font_small,
                  GRect(0, 0, tw, 20), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
-    int pw = sz.w + 18, ph = 18, pyy = y_hilo + 25;   // 6px under the hi/lo row
+    int pw = sz.w + 18, ph = 18, pyy = y_wind + 22;   // under the wind row
     graphics_context_set_fill_color(ctx, GColorBlack);
     graphics_fill_rect(ctx, GRect(X, pyy, pw, ph), ph / 2, GCornersAll);
     draw_text_in(ctx, warn, s_font_small, GRect(X, pyy + 1, pw, 16),
@@ -393,7 +490,10 @@ static void draw_hourly(GContext *ctx, GRect b) {
   time_t now = time(NULL);
   int now_hour = localtime(&now)->tm_hour;
   bool h24 = clock_is_24h_style();
-  int row_h = b.size.h / HOURS_N;
+  int top = draw_card_header(ctx, b, "HOURLY");
+  int avail = b.size.h - (top - b.origin.y);
+  int row_h = avail / HOURS_N;
+  int y0 = top + (avail - row_h * HOURS_N) / 2;   // centre the block; no top-hug
   char buf[8];
 
   // Temperature span across the visible hours drives the trend-bar lengths.
@@ -410,23 +510,24 @@ static void draw_hourly(GContext *ctx, GRect b) {
   int usable = trackW - 2 * dotr;
 
   for (int i = 0; i < HOURS_N; i++) {
-    GRect row = GRect(b.origin.x, b.origin.y + i * row_h, b.size.w, row_h);
+    GRect row = GRect(b.origin.x, y0 + i * row_h, b.size.w, row_h);
     HourSlot *hs = &s_wx.hours[i];
     int hour = (now_hour + i) % 24;
     int cy = row.origin.y + row_h / 2;
+    int ty = cy - 9;   // an 18px text line centred on the row midline
     GColor tint = temp_color(hs->temp, s_wx.is_metric);
 
     // Hour label, 12/24h per the watch's system setting.
     if (h24)               snprintf(buf, sizeof(buf), "%02d", hour);
     else                   snprintf(buf, sizeof(buf), "%d%s", (hour % 12) ? (hour % 12) : 12,
                                     hour < 12 ? "a" : "p");
-    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x + 6, row.origin.y, 28, row_h),
+    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x + 6, ty, 28, 18),
                  GColorWhite, GTextAlignmentLeft);
 
     // Condition glyph, night variant if that hour is after sunset / before sunrise.
     bool night = is_night_at(now + i * 3600);
     draw_text_in(ctx, wx_glyph(hs->code, night), s_font_wx_sm,
-                 GRect(row.origin.x + 34, row.origin.y - 2, 34, row_h),
+                 GRect(row.origin.x + 34, cy - 13, 34, 26),
                  GColorWhite, GTextAlignmentCenter);
 
     // Trend track spans the day's min..max; a ramp-tinted dot marks this hour.
@@ -438,7 +539,7 @@ static void draw_hourly(GContext *ctx, GRect b) {
 
     // Temperature, tinted by the ramp.
     snprintf(buf, sizeof(buf), "%d\xC2\xB0", hs->temp);
-    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x, row.origin.y, row.size.w - 6, row_h),
+    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x, ty, row.size.w - 6, 18),
                  tint, GTextAlignmentRight);
 
     draw_pop_bar(ctx, row, hs->pop);
@@ -452,31 +553,36 @@ static void draw_daily(GContext *ctx, GRect b) {
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
   time_t now = time(NULL);
-  int row_h = b.size.h / DAYS_N;
+  int top = draw_card_header(ctx, b, "DAILY");
+  int avail = b.size.h - (top - b.origin.y);
+  int row_h = avail / DAYS_N;
+  int y0 = top + (avail - row_h * DAYS_N) / 2;   // centre the block; no top-hug
   char buf[8];
 
   for (int i = 0; i < DAYS_N; i++) {
-    GRect row = GRect(b.origin.x, b.origin.y + i * row_h, b.size.w, row_h);
+    GRect row = GRect(b.origin.x, y0 + i * row_h, b.size.w, row_h);
     DaySlot *ds = &s_wx.days[i];
+    int cy = row.origin.y + row_h / 2;
+    int ty = cy - 9;   // an 18px text line centred on the row midline
 
     // Weekday, three letters, derived from today plus the slot index.
     time_t day = now + i * 86400;
     strftime(buf, sizeof(buf), "%a", localtime(&day));
-    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x + 6, row.origin.y, 52, row_h),
+    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x + 6, ty, 52, 18),
                  GColorWhite, GTextAlignmentLeft);
 
     // Condition glyph.
     draw_text_in(ctx, wx_glyph(ds->code, false), s_font_wx_sm,
-                 GRect(row.origin.x + row.size.w / 2 - 20, row.origin.y - 2, 40, row_h),
+                 GRect(row.origin.x + row.size.w / 2 - 20, cy - 13, 40, 26),
                  GColorWhite, GTextAlignmentCenter);
 
     // Max at the right edge, min just left of it, each tinted by the ramp so a
     // cold day reads blue and a hot day red without any label.
     snprintf(buf, sizeof(buf), "%d\xC2\xB0", ds->max);
-    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x, row.origin.y, row.size.w - 8, row_h),
+    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x, ty, row.size.w - 8, 18),
                  temp_color(ds->max, s_wx.is_metric), GTextAlignmentRight);
     snprintf(buf, sizeof(buf), "%d\xC2\xB0", ds->min);
-    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x, row.origin.y, row.size.w - 52, row_h),
+    draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x, ty, row.size.w - 52, 18),
                  temp_color(ds->min, s_wx.is_metric), GTextAlignmentRight);
 
     draw_pop_bar(ctx, row, ds->pop);
@@ -518,9 +624,25 @@ static void draw_sunmoon(GContext *ctx, GRect b) {
 
     int r = b.size.w / 2 - 22;
     GRect af = GRect(cx - r, b.origin.y + 52, 2 * r, 2 * r);   // sun rides the top half
-    graphics_context_set_stroke_color(ctx, GColorDarkGray);
+
+    // Progress along the day: sunrise (left), noon (top), sunset (right).
+    int prog = 0;
+    if (ss > sr) {
+      prog = (int)((now - sr) * 100 / (ss - sr));
+      if (prog < 0) prog = 0;
+      if (prog > 100) prog = 100;
+    }
+
+    // The whole path as a dim track, then the part the sun has already crossed
+    // lit bright, so the daylight arc reads as luminous rather than grey.
     graphics_context_set_stroke_width(ctx, 3);
+    graphics_context_set_stroke_color(ctx, GColorDarkGray);
     graphics_draw_arc(ctx, af, GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(-90), DEG_TO_TRIGANGLE(90));
+    if (prog > 0) {
+      graphics_context_set_stroke_color(ctx, GColorPastelYellow);
+      graphics_draw_arc(ctx, af, GOvalScaleModeFitCircle,
+                        DEG_TO_TRIGANGLE(-90), DEG_TO_TRIGANGLE(-90 + 180 * prog / 100));
+    }
 
     // Golden-hour bands, one at each end of the daylight arc, drawn in chrome
     // yellow over the track: the low warm light just after sunrise / before sunset.
@@ -534,16 +656,16 @@ static void draw_sunmoon(GContext *ctx, GRect b) {
                         DEG_TO_TRIGANGLE(90 - 180 * gfrac / 100), DEG_TO_TRIGANGLE(90));
     }
 
-    int prog = 0;
-    if (ss > sr) {
-      prog = (int)((now - sr) * 100 / (ss - sr));
-      if (prog < 0) prog = 0;
-      if (prog > 100) prog = 100;
-    }
+    // The sun disc with a soft corona (pale halo, warm mid, bright core), the
+    // phone's glowing light disc re-drawn as three stacked circles.
     int32_t ang = DEG_TO_TRIGANGLE(-90 + 180 * prog / 100);    // sunrise left, noon top, sunset right
     GPoint sp = gpoint_from_polar(af, GOvalScaleModeFitCircle, ang);
+    graphics_context_set_fill_color(ctx, GColorIcterine);
+    graphics_fill_circle(ctx, sp, 12);
+    graphics_context_set_fill_color(ctx, GColorChromeYellow);
+    graphics_fill_circle(ctx, sp, 9);
     graphics_context_set_fill_color(ctx, GColorYellow);
-    graphics_fill_circle(ctx, sp, 7);
+    graphics_fill_circle(ctx, sp, 6);
 
     // Golden-hour readout inside the arc: if in one now, when it ends; otherwise
     // when the evening one begins.
@@ -584,41 +706,72 @@ static void draw_sunmoon(GContext *ctx, GRect b) {
 
 // ---- wind card: a needle over a compass rose --------------------------------
 
+// A single compass tick: a bar whose outer tip lands on the mark ring (radius R)
+// and runs `len` inward, at 16-point index `i` (0 = N, clockwise).
+static void wind_tick(GContext *ctx, int cx, int cy, int R, int i32,
+                      int len, int width, GColor col) {
+  int32_t a = TRIG_MAX_ANGLE * i32 / 32;
+  GRect rfo = GRect(cx - R, cy - R, 2 * R, 2 * R);
+  int ri = R - len;
+  GRect rfi = GRect(cx - ri, cy - ri, 2 * ri, 2 * ri);
+  GPoint po = gpoint_from_polar(rfo, GOvalScaleModeFitCircle, a);
+  GPoint pi = gpoint_from_polar(rfi, GOvalScaleModeFitCircle, a);
+  graphics_context_set_stroke_color(ctx, col);
+  graphics_context_set_stroke_width(ctx, width);
+  graphics_draw_line(ctx, pi, po);
+}
+
 static void draw_wind(GContext *ctx, GRect b) {
   graphics_context_set_fill_color(ctx, GColorBlack);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
-  draw_text_in(ctx, "Wind", s_font_text,
-               GRect(b.origin.x, b.origin.y + 8, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+  draw_card_header(ctx, b, "WIND");
 
-  int cx = b.origin.x + b.size.w / 2, cy = b.origin.y + 78, r = 46;
-  GRect rf = GRect(cx - r, cy - r, 2 * r, 2 * r);
-  graphics_context_set_stroke_color(ctx, GColorDarkGray);
-  graphics_context_set_stroke_width(ctx, 2);
-  graphics_draw_circle(ctx, GPoint(cx, cy), r);
-  draw_text_in(ctx, "N", s_font_small, GRect(cx - 8, cy - r - 3, 16, 16), GColorLightGray, GTextAlignmentCenter);
-  draw_text_in(ctx, "S", s_font_small, GRect(cx - 8, cy + r - 13, 16, 16), GColorLightGray, GTextAlignmentCenter);
-  draw_text_in(ctx, "E", s_font_small, GRect(cx + r - 15, cy - 8, 16, 16), GColorLightGray, GTextAlignmentCenter);
-  draw_text_in(ctx, "W", s_font_small, GRect(cx - r - 1, cy - 8, 16, 16), GColorLightGray, GTextAlignmentCenter);
+  int cx = b.origin.x + b.size.w / 2, cy = b.origin.y + 92, R = 56;
+
+  // The tick ring carries the dial (no drawn circle), three tiers: the
+  // intercardinals longest and brightest, the 16-point marks medium, the finest
+  // points faint. The four cardinals are the letters, not a tick.
+  for (int i = 0; i < 32; i++) {
+    if (i % 8 == 0) continue;                                   // cardinal -> letter
+    if (i % 4 == 0)      wind_tick(ctx, cx, cy, R, i, 12, 3, GColorWhite);      // NE/SE/SW/NW
+    else if (i % 2 == 0) wind_tick(ctx, cx, cy, R, i,  8, 2, GColorLightGray);  // 16-point
+    else                 wind_tick(ctx, cx, cy, R, i,  5, 1, GColorDarkGray);   // fine
+  }
+  draw_text_in(ctx, "N", s_font_text, GRect(cx - 9, cy - R - 4, 18, 18), GColorWhite, GTextAlignmentCenter);
+  draw_text_in(ctx, "S", s_font_text, GRect(cx - 9, cy + R - 14, 18, 18), GColorWhite, GTextAlignmentCenter);
+  draw_text_in(ctx, "E", s_font_text, GRect(cx + R - 16, cy - 10, 18, 18), GColorWhite, GTextAlignmentCenter);
+  draw_text_in(ctx, "W", s_font_text, GRect(cx - R - 2, cy - 10, 18, 18), GColorWhite, GTextAlignmentCenter);
 
   int kmh = s_wx.is_metric ? s_wx.wind_speed : (int)(s_wx.wind_speed * 1.609f);
   GColor wc = wind_color(kmh);
-  int32_t ang = DEG_TO_TRIGANGLE(s_wx.wind_dir * 360 / 16);          // the source (tail)
-  GPoint tail = gpoint_from_polar(rf, GOvalScaleModeFitCircle, ang);
-  GPoint tip  = gpoint_from_polar(rf, GOvalScaleModeFitCircle,
-                                  (ang + TRIG_MAX_ANGLE / 2) % TRIG_MAX_ANGLE);
-  graphics_context_set_stroke_color(ctx, wc);
-  graphics_context_set_stroke_width(ctx, 4);
-  graphics_draw_line(ctx, tail, tip);
-  graphics_context_set_fill_color(ctx, wc);
-  graphics_fill_circle(ctx, tip, 5);                                 // arrow head (where it blows)
+
+  // A tapered needle: two triangles sharing a centre base, tips on the mark ring.
+  // The bright half points where the wind blows TO (dir + 180, dir being FROM);
+  // the dim half is the tail it comes from. Read as one slender vane.
+  int hw = 5;
+  int32_t a_to = (TRIG_MAX_ANGLE * s_wx.wind_dir / 16 + TRIG_MAX_ANGLE / 2) % TRIG_MAX_ANGLE;
+  GPoint head_pts[3] = { { 0, -R }, { hw, 0 }, { -hw, 0 } };
+  GPoint tail_pts[3] = { { 0,  R }, { hw, 0 }, { -hw, 0 } };
+  GPathInfo head_info = { 3, head_pts }, tail_info = { 3, tail_pts };
+  GPath *head = gpath_create(&head_info), *tail = gpath_create(&tail_info);
+  if (head && tail) {
+    gpath_rotate_to(tail, a_to); gpath_move_to(tail, GPoint(cx, cy));
+    gpath_rotate_to(head, a_to); gpath_move_to(head, GPoint(cx, cy));
+    graphics_context_set_fill_color(ctx, GColorDarkGray);
+    gpath_draw_filled(ctx, tail);
+    graphics_context_set_fill_color(ctx, wc);
+    gpath_draw_filled(ctx, head);
+  }
+  if (head) gpath_destroy(head);
+  if (tail) gpath_destroy(tail);
   graphics_context_set_fill_color(ctx, GColorWhite);
-  graphics_fill_circle(ctx, GPoint(cx, cy), 3);
+  graphics_fill_circle(ctx, GPoint(cx, cy), 2);
 
   char buf[24];
   snprintf(buf, sizeof(buf), "%d %s", s_wx.wind_speed, s_wx.is_metric ? "km/h" : "mph");
-  draw_text_in(ctx, buf, s_font_big, GRect(b.origin.x, cy + r + 6, b.size.w, 34), wc, GTextAlignmentCenter);
+  draw_text_in(ctx, buf, s_font_big, GRect(b.origin.x, cy + R + 2, b.size.w, 34), wc, GTextAlignmentCenter);
   snprintf(buf, sizeof(buf), "from %s   gust %d", CARD16[s_wx.wind_dir & 15], s_wx.wind_gust);
-  draw_text_in(ctx, buf, s_font_small, GRect(b.origin.x, cy + r + 42, b.size.w, 16),
+  draw_text_in(ctx, buf, s_font_small, GRect(b.origin.x, cy + R + 36, b.size.w, 16),
                GColorLightGray, GTextAlignmentCenter);
 }
 
@@ -645,6 +798,12 @@ static void draw_uv(GContext *ctx, GRect b) {
   snprintf(buf, sizeof(buf), "peak %d", s_wx.uv_peak);
   draw_text_in(ctx, buf, s_font_small, GRect(b.origin.x, cy + r + 30, b.size.w, 16),
                GColorLightGray, GTextAlignmentCenter);
+
+  // Inline legend: the WHO ramp with the marker on the current band, so the
+  // ring colour reads without opening the scale sheet.
+  int uidx = s_wx.uv <= 2 ? 0 : s_wx.uv <= 5 ? 1 : s_wx.uv <= 7 ? 2 : s_wx.uv <= 10 ? 3 : 4;
+  draw_ramp_bar(ctx, GRect(b.origin.x + 20, b.origin.y + b.size.h - 28, b.size.w - 40, 9),
+                UV_RAMP, 5, uidx * 2 + 1, 10);
 }
 
 // ---- air quality card: the ICA 1-6 band as a ring ---------------------------
@@ -668,6 +827,11 @@ static void draw_air(GContext *ctx, GRect b) {
                GRect(b.origin.x, cy + r + 6, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
   draw_text_in(ctx, "index 1-6", s_font_small,
                GRect(b.origin.x, cy + r + 30, b.size.w, 16), GColorLightGray, GTextAlignmentCenter);
+
+  // Inline legend: the MITECO ramp (blue best, violet worst) with the marker on
+  // the current category, so the ring colour reads at a glance.
+  draw_ramp_bar(ctx, GRect(b.origin.x + 20, b.origin.y + 200, b.size.w - 40, 9),
+                AQI_RAMP, 6, (band - 1) * 2 + 1, 12);
 }
 
 // ---- details card: the fields the hero omits, to stay calm ------------------
@@ -722,7 +886,9 @@ static void draw_bulletin(GContext *ctx, GRect b) {
 
 typedef struct { GColor col; const char *label; const char *range; } ScaleRow;
 
-static bool sheet_card(int c) { return c == CARD_WIND || c == CARD_UV || c == CARD_AIR; }
+static bool sheet_card(int c) {
+  return c == CARD_WIND || c == CARD_UV || c == CARD_AIR || c == CARD_DETAILS;
+}
 
 static void draw_scale_sheet(GContext *ctx, GRect b, const char *title,
                              const ScaleRow *rows, int n) {
@@ -745,33 +911,69 @@ static void draw_scale_sheet(GContext *ctx, GRect b, const char *title,
   }
 }
 
+// The Details legend: the temperature and wind ramps as two AuraScaleBars, each
+// with the marker at the current reading, plus the precip-blue note. Explains
+// the tint on Feels, Gust and Precip without a per-band table.
+static void draw_details_legend(GContext *ctx, GRect b) {
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+  draw_text_in(ctx, "Colour legend", s_font_text,
+               GRect(b.origin.x, b.origin.y + 6, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+
+  int x = b.origin.x + 16, w = b.size.w - 32, hw = w / 2;
+
+  draw_text_in(ctx, "Temperature", s_font_small, GRect(x, b.origin.y + 40, w, 16),
+               GColorLightGray, GTextAlignmentLeft);
+  int c = s_wx.is_metric ? s_wx.temp : (s_wx.temp - 32) * 5 / 9;
+  draw_ramp_bar(ctx, GRect(x, b.origin.y + 64, w, 12), TEMP_RAMP, 9, c + 8, 53);
+  draw_text_in(ctx, "cold", s_font_small, GRect(x, b.origin.y + 78, hw, 14), GColorLightGray, GTextAlignmentLeft);
+  draw_text_in(ctx, "hot",  s_font_small, GRect(x + hw, b.origin.y + 78, hw, 14), GColorLightGray, GTextAlignmentRight);
+
+  draw_text_in(ctx, "Wind", s_font_small, GRect(x, b.origin.y + 104, w, 16),
+               GColorLightGray, GTextAlignmentLeft);
+  int kmh = s_wx.is_metric ? s_wx.wind_speed : (int)(s_wx.wind_speed * 1.609f);
+  draw_ramp_bar(ctx, GRect(x, b.origin.y + 128, w, 12), WIND_RAMP, 8, kmh, 130);
+  draw_text_in(ctx, "calm",  s_font_small, GRect(x, b.origin.y + 142, hw, 14), GColorLightGray, GTextAlignmentLeft);
+  draw_text_in(ctx, "storm", s_font_small, GRect(x + hw, b.origin.y + 142, hw, 14), GColorLightGray, GTextAlignmentRight);
+
+  draw_text_in(ctx, "Precip shown in blue", s_font_small,
+               GRect(x, b.origin.y + 172, w, 16), GColorPictonBlue, GTextAlignmentLeft);
+}
+
 static void draw_sheet_for(GContext *ctx, GRect b, int card) {
   if (card == CARD_WIND) {
-    // The wind ramp, as Beaufort-style bands (km/h, the ramp's native unit).
+    // The Windy ramp as condensed Beaufort bands (km/h, the ramp's native unit).
     ScaleRow rows[] = {
-      { GColorMediumSpringGreen, "Calm / light", "0-11" },
-      { GColorRajah,             "Moderate",     "12-38" },
-      { GColorOrange,            "Fresh / strong", "39-61" },
-      { GColorRed,               "Gale+",        "62+ km/h" },
+      { GColorCeleste,          "Calm",        "0-11" },
+      { GColorMediumAquamarine, "Light",       "12-19" },
+      { GColorGreen,            "Moderate",    "20-28" },
+      { GColorYellow,           "Fresh",       "29-38" },
+      { GColorOrange,           "Strong",      "39-49" },
+      { GColorSunsetOrange,     "Very strong", "50-61" },
+      { GColorRed,              "Gale",        "62-88" },
+      { GColorVividViolet,      "Storm+",      "89+ km/h" },
     };
-    draw_scale_sheet(ctx, b, "Wind scale", rows, 4);
+    draw_scale_sheet(ctx, b, "Wind scale", rows, 8);
   } else if (card == CARD_UV) {
     ScaleRow rows[] = {
-      { GColorGreen,  "Low",       "0-2" },
-      { GColorYellow, "Moderate",  "3-5" },
-      { GColorOrange, "High",      "6-7" },
-      { GColorRed,    "Very high", "8-10" },
-      { GColorPurple, "Extreme",   "11+" },
+      { GColorGreen,       "Low",       "0-2" },
+      { GColorYellow,      "Moderate",  "3-5" },
+      { GColorOrange,      "High",      "6-7" },
+      { GColorRed,         "Very high", "8-10" },
+      { GColorVividViolet, "Extreme",   "11+" },
     };
     draw_scale_sheet(ctx, b, "UV index (WHO)", rows, 5);
+  } else if (card == CARD_DETAILS) {
+    draw_details_legend(ctx, b);
   } else {
+    // Air quality, MITECO ICA (blue best, violet worst) to match the phone.
     ScaleRow rows[] = {
-      { GColorGreen,             "Good",            "1" },
-      { GColorMediumSpringGreen, "Fair",            "2" },
-      { GColorYellow,            "Moderate",        "3" },
-      { GColorOrange,            "Poor",            "4" },
-      { GColorRed,               "Very poor",       "5" },
-      { GColorPurple,            "Extremely poor",  "6" },
+      { GColorVividCerulean,     "Good",           "1" },
+      { GColorGreen,             "Fair",           "2" },
+      { GColorYellow,            "Moderate",       "3" },
+      { GColorRed,               "Poor",           "4" },
+      { GColorDarkCandyAppleRed, "Very poor",      "5" },
+      { GColorVividViolet,       "Extremely poor", "6" },
     };
     draw_scale_sheet(ctx, b, "Air quality index", rows, 6);
   }
@@ -822,7 +1024,10 @@ static bool card_visible(int c) {
   switch (c) {
     case CARD_UV:       return s_wx.uv_peak > 0;
     case CARD_AIR:      return s_wx.aqi > 0;
-    case CARD_BULLETIN: return s_bulletin[0] != '\0';
+    // The hero now carries the plain-language forecast, so the Forecast card is
+    // kept only when the text is too long to fit there (the AEMET boletin in
+    // Spain); the short worldwide summary lives on the hero alone.
+    case CARD_BULLETIN: return strlen(s_bulletin) > HERO_FORECAST_MAX;
     default:            return true;
   }
 }

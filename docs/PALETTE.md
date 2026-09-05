@@ -8,39 +8,71 @@ The Pebble Time 2 (`emery`) renders **64 colours**: 2 bits per channel, so each 
 
 Snapping rule per channel: `level = round(value01 * 3) * 85`.
 
-## Starter mapping (snapped anchors)
+## The weather ramps as encoded in C
 
-These are the ramp endpoints and anchors, snapped to the Pebble palette. Treat them as a **starting point** and tune against the Color Picker on real hardware, because the 64-colour grid shifts some hues (Aura's yellow, for instance, lands closer to orange).
+These four ramps are re-encoded from `Palette.swift` into the nearest Pebble 64-colour constant in `aura-weather/src/c/aura-weather.c`, and I keep them in step with the phone so a colour means the same thing on the watch as it does in the iOS/macOS app. Each row is one band: the threshold, the iOS intent behind the colour, and the `GColor` constant I snap it to.
 
-### Temperature (cold to hot)
-| Aura anchor | Source RGB (0 to 1) | 8-bit hex | Pebble-snapped |
-|---|---|---|---|
-| Cold violet | 0.40, 0.16, 0.56 | `#66298F` | `#5500AA` |
-| Blue | 0.20, 0.52, 0.90 | `#3385E6` | `#55AAFF` |
-| Green (≈20 °C boundary / accent) | n/a | n/a | `#00FF55` (`GColorMediumSpringGreen`) |
-| Yellow | 0.97, 0.83, 0.26 | `#F7D442` | `#FFAA55` |
-| Hot maroon | 0.40, 0.07, 0.13 | `#661221` | `#550000` |
+### Temperature (`temp_color`, degrees C)
 
-The green boundary is the current **Aura accent** used in `aura-digital` (the battery rule).
+Mirrors `Palette.swift` `tempStops`, including the green/yellow hand-off at 20 C.
 
-### Wind (calm to violent)
-| Aura anchor | Source RGB (0 to 1) | Pebble-snapped |
+| Band (°C) | iOS intent | Pebble GColor |
 |---|---|---|
-| Pale-blue calm | 0.55, 0.80, 0.92 | `#AAAAFF` |
-| Violet (extreme) | 0.52, 0.28, 0.78 | `#AA55AA` |
+| < -4 | deep cold violet | `GColorIndigo` |
+| < 2 | blue-violet | `GColorLiberty` |
+| < 8 | blue | `GColorBlueMoon` |
+| < 13 | cyan-teal | `GColorTiffanyBlue` |
+| < 17 | green-teal | `GColorMalachite` |
+| < 20 | mild accent green | `GColorGreen` |
+| < 23 | green-yellow | `GColorInchworm` |
+| < 26 | yellow | `GColorYellow` |
+| < 29 | amber | `GColorChromeYellow` |
+| < 32 | orange | `GColorOrange` |
+| < 35 | red-orange | `GColorSunsetOrange` |
+| < 39 | red | `GColorRed` |
+| < 43 | dark red | `GColorDarkCandyAppleRed` |
+| ≥ 43 | deep maroon | `GColorBulgarianRose` |
 
-### Air quality, MITECO ICA 1 to 6
-| Band | Source RGB (0 to 1) | Pebble-snapped |
+### Wind (`wind_color`, km/h)
+
+From `Palette.swift` `windStops` (the Windy ramp); the band edges track the Beaufort forces.
+
+| Band (km/h) | iOS intent | Pebble GColor |
 |---|---|---|
-| 1 Good (blue) | 0.31, 0.66, 0.93 | `#55AAFF` |
-| 2 Reasonable (green) | 0.30, 0.72, 0.42 | `#55AA55` |
-| 3 Regular (yellow) | 0.96, 0.80, 0.25 | `#FFAA55` |
-| 4 Unfavourable (red) | 0.90, 0.29, 0.24 | `#FF5555` |
-| 5 Very unfav. (maroon) | 0.60, 0.13, 0.15 | `#AA0000` |
-| 6 Extreme (violet) | 0.60, 0.28, 0.75 | `#AA55AA` |
+| < 12 | calm | `GColorCeleste` |
+| < 20 | light | `GColorMediumAquamarine` |
+| < 29 | moderate | `GColorGreen` |
+| < 39 | fresh | `GColorYellow` |
+| < 50 | strong | `GColorOrange` |
+| < 62 | very strong | `GColorSunsetOrange` |
+| < 89 | gale | `GColorRed` |
+| < 118 | storm | `GColorPurpureus` |
+| ≥ 118 | violent | `GColorVividViolet` |
 
-### UV (WHO bands)
-Green, then yellow, then **orange 0.97, 0.58, 0.18 mapping to `#FFAA55`**, then red, then violet (same endpoints as the temperature hot end).
+### UV index (`uv_color`, WHO bands)
+
+From `Palette.swift` `UVBands`.
+
+| Index | Band | Pebble GColor |
+|---|---|---|
+| 0–2 | Low | `GColorGreen` |
+| 3–5 | Moderate | `GColorYellow` |
+| 6–7 | High | `GColorOrange` |
+| 8–10 | Very high | `GColorRed` |
+| 11+ | Extreme | `GColorVividViolet` |
+
+### Air quality (`aqi_color`, MITECO ICA 1 to 6)
+
+From `Palette.swift` `airQuality`, the Spanish MITECO ICA / European index. **This ramp is inverted** from the usual WHO-style green-at-best convention: MITECO reads blue as best and runs down to violet as worst, and I match the phone rather than the common scale, so a low index reads azul, not verde.
+
+| Index | Band (ES) | Pebble GColor |
+|---|---|---|
+| 1 | Good (azul) | `GColorVividCerulean` |
+| 2 | Fair (verde) | `GColorGreen` |
+| 3 | Moderate (amarillo) | `GColorYellow` |
+| 4 | Poor (rojo) | `GColorRed` |
+| 5 | Very poor (granate) | `GColorDarkCandyAppleRed` |
+| 6 | Extremely poor (violeta) | `GColorVividViolet` |
 
 ## Time-of-day accent (the `aura-digital` face)
 
