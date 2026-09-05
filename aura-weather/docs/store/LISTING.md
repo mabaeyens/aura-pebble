@@ -11,7 +11,7 @@ Everything needed to submit Aura Weather as a new **watchapp** on the Pebble dev
 | Version | 1.0.0 |
 | Category | Tools & Utilities (it is a weather app; pick the closest available at submission time) |
 | Source code | https://github.com/mabaeyens/aura-pebble |
-| Support | a real contact address, or the repo issues at https://github.com/mabaeyens/aura-pebble/issues |
+| Support | https://askmira.es/aura/support (the same support page as the iOS and Android apps) |
 | License | Code MIT; bundled fonts under SIL OFL 1.1 (see README) |
 
 ## Tagline
