@@ -97,7 +97,7 @@ Model the project directory on `aura-essential` (single C file grows into a few,
 - `targetPlatforms`: `["aplite","basalt","chalk","diorite","emery"]`. Emery (Time 2) is the design target at 200x228 and 64 colours; lay out from `layer_get_bounds()` so `chalk` (round) and the 144x168 legacy platforms still render.
 - `capabilities`: `["configurable","location"]`. No `health` (a weather app needs no step count).
 - `enableMultiJS`: true, `sdkVersion`: "3".
-- Fonts: bundle `WeatherIcons-Regular.ttf` (condition glyphs, character-subset) and reuse Liberation Sans Bold for text, both already living in `../aura-analog/resources/fonts/`.
+- Fonts: bundle `WeatherIcons-Regular.ttf` (condition glyphs, character-subset) and `AtkinsonHyperlegibleNext-Bold.otf` for text, both under `resources/fonts/` (character-subset, with their SIL OFL licenses).
 - Message keys: see `01-data-bridge.md` for the full list; always `#include "message_keys.auto.h"`, never hand-declare the keys extern (that breaks the older pebble-tool CloudPebble runs).
 
 ## Build order (suggested)

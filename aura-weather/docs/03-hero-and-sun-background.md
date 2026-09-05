@@ -8,7 +8,7 @@ The hero is the screen the app opens on and the one thing that must feel like Au
 
 - `src/c/hero.c` (or a section of the main C file): the hero `Layer` update proc. New.
 - `src/c/sky.c`: `sun_path()`, `solar_times()`, `sky_colors_at()`, the disc and star drawing. New, self-contained, no assets.
-- Reuse `WeatherIcons-Regular.ttf` and Liberation Sans Bold from `../aura-analog/resources/fonts/`.
+- Use `WeatherIcons-Regular.ttf` and `AtkinsonHyperlegibleNext-Bold.otf` from `resources/fonts/`.
 
 ## Layout (200 x 228 Emery, laid out from bounds so chalk and 144x168 still work)
 

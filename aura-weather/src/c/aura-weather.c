@@ -66,6 +66,7 @@ static int s_sheet = SHEET_NONE;
 
 static GFont s_font_xl;     // extra-large hero temperature
 static GFont s_font_big;    // large current temperature
+static GFont s_font_head;   // large lettered headline (aviso phenomenon)
 static GFont s_font_text;   // labels, hi/lo, location, weekday
 static GFont s_font_small;  // staleness note
 static GFont s_font_wx;     // condition glyph, hero size
@@ -155,6 +156,7 @@ static void draw_text_in(GContext *ctx, const char *s, GFont f, GRect box,
 
 // Draw text with a 1px black halo so it stays legible floating over the scene
 // (Pebble has no soft shadow/blur; four cardinal offsets read as a clean edge).
+__attribute__((unused))
 static void draw_text_halo(GContext *ctx, const char *s, GFont f, GRect box,
                            GColor col, GTextAlignment align) {
   graphics_context_set_text_color(ctx, GColorBlack);
@@ -434,16 +436,16 @@ static void draw_hero(GContext *ctx, GRect b) {
   int y_fc   = Y + 94;   // forecast + wind, one flowing dataline (the old hi/lo)
 
   // Location, top-left, small.
-  draw_text_halo(ctx, s_wx.name, s_font_text, GRect(X, y_loc, tw, 20),
+  draw_text_in(ctx, s_wx.name, s_font_text, GRect(X, y_loc, tw, 20),
                  GColorWhite, GTextAlignmentLeft);
 
   // Current temperature, extra-large, tucked close under the location.
   snprintf(buf, sizeof(buf), "%d\xC2\xB0", s_wx.temp);
-  draw_text_halo(ctx, buf, s_font_xl, GRect(X, y_temp, tw, 56),
+  draw_text_in(ctx, buf, s_font_xl, GRect(X, y_temp, tw, 56),
                  temp_ink(s_wx.temp, s_wx.is_metric), GTextAlignmentLeft);
 
   // Condition summary under the temperature.
-  draw_text_halo(ctx, wx_summary(s_wx.code), s_font_text,
+  draw_text_in(ctx, wx_summary(s_wx.code), s_font_text,
                  GRect(X, y_sum, tw, 22), GColorWhite, GTextAlignmentLeft);
 
   // Forecast and wind as ONE flowing dataline (the phone's dataline sentence):
@@ -452,7 +454,7 @@ static void draw_hero(GContext *ctx, GRect b) {
   // wind still has its own card). Falls back to a staleness note before any data.
   int y_pill = y_fc + 58;
   if (s_wx.updated == 0) {
-    draw_text_halo(ctx, "no data", s_font_small, GRect(X, y_fc + 1, tw, 16),
+    draw_text_in(ctx, "no data", s_font_small, GRect(X, y_fc + 1, tw, 16),
                    GColorLightGray, GTextAlignmentLeft);
   } else if (s_bulletin[0]) {
     char line[160];
@@ -462,7 +464,7 @@ static void draw_hero(GContext *ctx, GRect b) {
                CARD16[s_wx.wind_dir & 15], s_wx.wind_speed, s_wx.is_metric ? "km/h" : "mph");
       dataline = line;
     }
-    draw_text_halo(ctx, dataline, s_font_small, GRect(X, y_fc, tw, 54),
+    draw_text_in(ctx, dataline, s_font_small, GRect(X, y_fc, tw, 54),
                    GColorWhite, GTextAlignmentLeft);
   }
 
@@ -471,12 +473,12 @@ static void draw_hero(GContext *ctx, GRect b) {
   // alert_level/label; the colour-coded aviso card carries the detail.
   if (s_wx.alert_level > 0) {
     const char *warn = alert_word(s_wx.alert_label);
-    GSize sz = graphics_text_layout_get_content_size(warn, s_font_text,
-                 GRect(0, 0, tw, 24), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
-    int pw = sz.w + 22, ph = 24;
+    GSize sz = graphics_text_layout_get_content_size(warn, s_font_small,
+                 GRect(0, 0, tw, 20), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
+    int pw = sz.w + 16, ph = 20;
     graphics_context_set_fill_color(ctx, GColorBlack);
     graphics_fill_rect(ctx, GRect(X, y_pill, pw, ph), ph / 2, GCornersAll);
-    draw_text_in(ctx, warn, s_font_text, GRect(X, y_pill + 2, pw, 20),
+    draw_text_in(ctx, warn, s_font_small, GRect(X, y_pill + 2, pw, 16),
                  alert_color(s_wx.alert_level), GTextAlignmentCenter);
   }
 }
@@ -630,10 +632,10 @@ static void draw_aviso(GContext *ctx, GRect b) {
   GPoint c = GPoint(b.origin.x + b.size.w / 2, b.origin.y + 58);
   draw_warning_triangle(ctx, c, 34, ink, bg);
 
-  draw_text_in(ctx, alert_word(s_wx.alert_label), s_font_big,
-               GRect(b.origin.x, b.origin.y + 100, b.size.w, 42), ink, GTextAlignmentCenter);
+  draw_text_in(ctx, alert_word(s_wx.alert_label), s_font_head,
+               GRect(b.origin.x, b.origin.y + 104, b.size.w, 36), ink, GTextAlignmentCenter);
   draw_text_in(ctx, alert_level_word(lvl), s_font_text,
-               GRect(b.origin.x, b.origin.y + 148, b.size.w, 22), ink, GTextAlignmentCenter);
+               GRect(b.origin.x, b.origin.y + 150, b.size.w, 22), ink, GTextAlignmentCenter);
 }
 
 // ---- sun & moon card: daylight arc by day, moon phase after dark ------------
@@ -838,7 +840,7 @@ static void draw_uv(GContext *ctx, GRect b) {
 
   char buf[8];
   snprintf(buf, sizeof(buf), "%d", s_wx.uv);
-  draw_text_in(ctx, buf, s_font_big, GRect(cx - 40, cy - 24, 80, 36), uc, GTextAlignmentCenter);
+  draw_text_in(ctx, buf, s_font_xl, GRect(cx - 40, cy - 31, 80, 56), uc, GTextAlignmentCenter);
   draw_text_in(ctx, uv_band(s_wx.uv), s_font_text,
                GRect(b.origin.x, cy + r + 6, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
   snprintf(buf, sizeof(buf), "peak %d", s_wx.uv_peak);
@@ -867,7 +869,7 @@ static void draw_air(GContext *ctx, GRect b) {
 
   char buf[8];
   snprintf(buf, sizeof(buf), "%d", band);
-  draw_text_in(ctx, buf, s_font_big, GRect(cx - 40, cy - 24, 80, 36), ac, GTextAlignmentCenter);
+  draw_text_in(ctx, buf, s_font_xl, GRect(cx - 40, cy - 31, 80, 56), ac, GTextAlignmentCenter);
   draw_text_in(ctx, aqi_name(band), s_font_text,
                GRect(b.origin.x, cy + r + 6, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
   draw_text_in(ctx, "index 1-6", s_font_small,
@@ -1344,6 +1346,7 @@ static void window_unload(Window *window) {
 static void init(void) {
   s_font_xl     = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_48));
   s_font_big    = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_34));
+  s_font_head   = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_28));
   s_font_text   = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_18));
   s_font_small  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_AURA_14));
   s_font_wx     = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_WI_30));
@@ -1370,6 +1373,7 @@ static void deinit(void) {
   window_destroy(s_window);
   fonts_unload_custom_font(s_font_xl);
   fonts_unload_custom_font(s_font_big);
+  fonts_unload_custom_font(s_font_head);
   fonts_unload_custom_font(s_font_text);
   fonts_unload_custom_font(s_font_small);
   fonts_unload_custom_font(s_font_wx);

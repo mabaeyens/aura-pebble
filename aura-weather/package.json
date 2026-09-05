@@ -97,25 +97,31 @@
         {
           "type": "font",
           "name": "FONT_AURA_34",
-          "file": "fonts/LiberationSans-Bold.ttf",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
           "characterRegex": "[-0-9°]"
         },
         {
           "type": "font",
           "name": "FONT_AURA_48",
-          "file": "fonts/LiberationSans-Bold.ttf",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
           "characterRegex": "[-0-9°]"
         },
         {
           "type": "font",
           "name": "FONT_AURA_18",
-          "file": "fonts/LiberationSans-Bold.ttf",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
           "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%/,.:();!' ]"
         },
         {
           "type": "font",
           "name": "FONT_AURA_14",
-          "file": "fonts/LiberationSans-Bold.ttf",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
+          "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%/,.:();!' ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_28",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
           "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%/,.:();!' ]"
         },
         {

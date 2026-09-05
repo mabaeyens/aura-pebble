@@ -58,9 +58,9 @@ The design work that led here, kept for reference:
 
 ## Fonts
 
-Text is set in **Liberation Sans Bold** (metric-compatible with Helvetica), and conditions use the **Weather Icons** symbol font. Both are under the SIL Open Font License 1.1, bundled and subset to the glyphs actually used, under [`resources/fonts/`](resources/fonts) with their licenses.
+Text is set in **Atkinson Hyperlegible Next Bold**, the Braille Institute's legibility-first typeface, and conditions use the **Weather Icons** symbol font. Both are under the SIL Open Font License 1.1, bundled and subset to the glyphs actually used, under [`resources/fonts/`](resources/fonts) with their licenses.
 
-- Liberation Sans, (c) Red Hat, SIL OFL 1.1.
+- Atkinson Hyperlegible Next, (c) 2020-2024 The Atkinson Hyperlegible Next Project Authors, SIL OFL 1.1.
 - Weather Icons, (c) Erik Flowers, SIL OFL 1.1.
 
 Built with Claude Code.
