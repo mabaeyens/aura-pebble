@@ -72,11 +72,11 @@ Light theme (showcase):
 | Air quality | `weather-air-light.png` |
 | Details | `weather-details-light.png` |
 
-The `.pbw` bundles every target platform (aplite, basalt, chalk, diorite, emery), so one screenshot set for emery covers the listing; add a round `chalk` shot if the dashboard wants one per platform.
+The `.pbw` targets `emery` (Pebble Time 2) only, so this one screenshot set covers the listing.
 
 ## Artifact
 
-The single upload is the built bundle at `../../build/aura-weather.pbw` (run `pebble build` from `aura-weather/` to regenerate). It carries all five platforms.
+The single upload is the built bundle at `../../build/aura-weather.pbw` (run `pebble build` from `aura-weather/` to regenerate). It targets `emery` (Pebble Time 2) only.
 
 ## Submission steps
 
