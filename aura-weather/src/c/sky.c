@@ -99,14 +99,17 @@ SunState sun_compute(time_t now, time_t sunrise, time_t sunset, GRect sky) {
 // sunset orange low. Day: vivid cerulean high, picton blue low.
 static void band_colors(SunState s, int cover, GColor out[4]) {
   if (cover >= 2) {
-    // Overcast: a flat grey wash, no visible disc. A touch darker at night so
-    // it still reads as a night sky rather than a daytime one.
+    // Overcast: a heavy sky with no visible disc, but graded, not the flat grey
+    // wash it used to be (which read as the monochrome original Pebble and, worse,
+    // left the white hero text illegible on light grey). Dark and cool up top
+    // where the hero text sits, lifting to a brighter steel-blue horizon; a touch
+    // darker overall at night so it still reads as night rather than day.
     if (s.night) {
-      out[0] = GColorDarkGray;  out[1] = GColorDarkGray;
-      out[2] = GColorDarkGray;  out[3] = GColorBlack;
+      out[0] = GColorBlack;     out[1] = GColorOxfordBlue;
+      out[2] = GColorDarkGray;  out[3] = GColorDarkGray;
     } else {
-      out[0] = GColorLightGray; out[1] = GColorLightGray;
-      out[2] = GColorLightGray; out[3] = GColorLightGray;
+      out[0] = GColorDarkGray;  out[1] = GColorDarkGray;
+      out[2] = GColorCadetBlue; out[3] = GColorLightGray;
     }
     return;
   }

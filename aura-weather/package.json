@@ -93,7 +93,7 @@
         },
         {
           "type": "font",
-          "name": "FONT_AURA_34",
+          "name": "FONT_AURA_64",
           "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
           "characterRegex": "[-0-9°]"
         },
@@ -105,19 +105,31 @@
         },
         {
           "type": "font",
-          "name": "FONT_AURA_18",
+          "name": "FONT_AURA_40",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
+          "characterRegex": "[-0-9°%]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_28",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
+          "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%/,.:();!' ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_20",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
+          "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%/,.:();!' ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_16",
           "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
           "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%/,.:();!' ]"
         },
         {
           "type": "font",
           "name": "FONT_AURA_14",
-          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
-          "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%/,.:();!' ]"
-        },
-        {
-          "type": "font",
-          "name": "FONT_AURA_28",
           "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
           "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%/,.:();!' ]"
         },
