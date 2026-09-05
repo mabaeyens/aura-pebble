@@ -769,9 +769,9 @@ static void draw_wind(GContext *ctx, GRect b) {
 
   char buf[24];
   snprintf(buf, sizeof(buf), "%d %s", s_wx.wind_speed, s_wx.is_metric ? "km/h" : "mph");
-  draw_text_in(ctx, buf, s_font_big, GRect(b.origin.x, cy + R + 2, b.size.w, 34), wc, GTextAlignmentCenter);
+  draw_text_in(ctx, buf, s_font_big, GRect(b.origin.x, cy + R - 2, b.size.w, 34), wc, GTextAlignmentCenter);
   snprintf(buf, sizeof(buf), "from %s   gust %d", CARD16[s_wx.wind_dir & 15], s_wx.wind_gust);
-  draw_text_in(ctx, buf, s_font_small, GRect(b.origin.x, cy + R + 36, b.size.w, 16),
+  draw_text_in(ctx, buf, s_font_small, GRect(b.origin.x, cy + R + 44, b.size.w, 16),
                GColorLightGray, GTextAlignmentCenter);
 }
 
