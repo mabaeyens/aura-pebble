@@ -33,6 +33,7 @@ enum {
 #define PKEY_WEATHER  1   // persist slot for the whole Weather struct
 #define PKEY_BULLETIN 2   // the bulletin text (kept out of the struct: persist caps at 256 B)
 #define PKEY_CARDS    3   // card visibility + boot preference (from Clay)
+#define PKEY_THEME    4   // 0 = dark (default), 1 = light
 
 // The generated / official forecast prose. Lives outside the persisted Weather
 // struct because that struct plus a ~256 B string would exceed persist's 256 B
@@ -71,6 +72,18 @@ static GFont s_font_text;   // labels, hi/lo, location, weekday
 static GFont s_font_small;  // staleness note
 static GFont s_font_wx;     // condition glyph, hero size
 static GFont s_font_wx_sm;  // condition glyph, list size
+
+// ---- theme -----------------------------------------------------------------
+// A watch-local, persisted preference. Dark is the default the app was designed
+// on; light flips only the *structural* colours -- card background, primary ink,
+// dim labels and faint tracks -- while every *semantic* colour (the temperature,
+// UV, air, wind and aviso ramps, the sun/moon warmth) stays put. The hero is
+// painted over the weather scene, not a solid fill, so it is never themed.
+static bool s_light = false;
+static GColor theme_bg(void)    { return s_light ? GColorWhite     : GColorBlack;     }
+static GColor theme_ink(void)   { return s_light ? GColorBlack     : GColorWhite;     }
+static GColor theme_dim(void)   { return s_light ? GColorDarkGray  : GColorLightGray; }
+static GColor theme_track(void) { return s_light ? GColorLightGray : GColorDarkGray;  }
 
 static Weather s_wx;        // the single in-memory forecast (from the phone / persist)
 
@@ -320,6 +333,9 @@ static void draw_ring(GContext *ctx, GRect frame, int thickness, int pct,
 // which the card body should begin.
 #define CARD_HEADER_H 26
 static int draw_card_header(GContext *ctx, GRect b, const char *title, GColor col) {
+  // The default dim label follows the theme; a caller passing a semantic tint
+  // (e.g. the blue-hour header) keeps it.
+  if (gcolor_equal(col, GColorLightGray)) col = theme_dim();
   draw_text_in(ctx, title, s_font_small, GRect(b.origin.x + 8, b.origin.y + 6, b.size.w - 16, 16),
                col, GTextAlignmentLeft);
   return b.origin.y + CARD_HEADER_H;
@@ -337,7 +353,7 @@ static void draw_ramp_bar(GContext *ctx, GRect bar, const GColor *cols, int n,
     graphics_context_set_fill_color(ctx, cols[i]);
     graphics_fill_rect(ctx, GRect(x0, bar.origin.y, x1 - x0, bar.size.h), 0, GCornerNone);
   }
-  graphics_context_set_stroke_color(ctx, GColorLightGray);
+  graphics_context_set_stroke_color(ctx, theme_dim());
   graphics_draw_rect(ctx, bar);
 
   if (den <= 0) return;
@@ -349,11 +365,11 @@ static void draw_ramp_bar(GContext *ctx, GRect bar, const GColor *cols, int n,
   GPathInfo info = { 3, tri };
   GPath *p = gpath_create(&info);
   if (p) {
-    graphics_context_set_fill_color(ctx, GColorWhite);
+    graphics_context_set_fill_color(ctx, theme_ink());
     gpath_draw_filled(ctx, p);
     gpath_destroy(p);
   }
-  graphics_context_set_stroke_color(ctx, GColorWhite);
+  graphics_context_set_stroke_color(ctx, theme_ink());
   graphics_draw_line(ctx, GPoint(mx, bar.origin.y), GPoint(mx, bar.origin.y + bar.size.h - 1));
 }
 
@@ -371,17 +387,17 @@ static void draw_moon(GContext *ctx, GPoint c, int r, int lit_pct, bool waxing) 
   for (int dy = -r; dy <= r; dy++) {
     int half = isqrt_i(r * r - dy * dy);
     int y = c.y + dy;
-    graphics_context_set_stroke_color(ctx, GColorOxfordBlue);   // dark limb
+    graphics_context_set_stroke_color(ctx, theme_track());   // unlit limb
     graphics_draw_line(ctx, GPoint(c.x - half, y), GPoint(c.x + half, y));
     int xt = (100 - 2 * lit_pct) * half / 100;                  // terminator x at this row
     int x0, x1;
     if (waxing) { x0 = xt; x1 = half; } else { x0 = -half; x1 = -xt; }
     if (x1 > x0) {
-      graphics_context_set_stroke_color(ctx, GColorWhite);
+      graphics_context_set_stroke_color(ctx, theme_ink());
       graphics_draw_line(ctx, GPoint(c.x + x0, y), GPoint(c.x + x1, y));
     }
   }
-  graphics_context_set_stroke_color(ctx, GColorLightGray);
+  graphics_context_set_stroke_color(ctx, theme_dim());
   graphics_draw_circle(ctx, c, r);
 }
 
@@ -496,7 +512,7 @@ static void draw_pop_bar(GContext *ctx, GRect row, uint8_t pop) {
 // ---- hourly screen: next 8 hours -------------------------------------------
 
 static void draw_hourly(GContext *ctx, GRect b) {
-  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_context_set_fill_color(ctx, theme_bg());
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
   time_t now = time(NULL);
@@ -534,16 +550,16 @@ static void draw_hourly(GContext *ctx, GRect b) {
     else                   snprintf(buf, sizeof(buf), "%d%s", (hour % 12) ? (hour % 12) : 12,
                                     hour < 12 ? "a" : "p");
     draw_text_in(ctx, buf, s_font_text, GRect(row.origin.x + 6, ty, 28, 18),
-                 GColorWhite, GTextAlignmentLeft);
+                 theme_ink(), GTextAlignmentLeft);
 
     // Condition glyph, night variant if that hour is after sunset / before sunrise.
     bool night = is_night_at(now + i * 3600);
     draw_text_in(ctx, wx_glyph(hs->code, night), s_font_wx_sm,
                  GRect(row.origin.x + 34, cy - 13, 34, 26),
-                 GColorWhite, GTextAlignmentCenter);
+                 theme_ink(), GTextAlignmentCenter);
 
     // Trend track spans the day's min..max; a ramp-tinted dot marks this hour.
-    graphics_context_set_fill_color(ctx, GColorDarkGray);
+    graphics_context_set_fill_color(ctx, theme_track());
     graphics_fill_rect(ctx, GRect(trackX, cy - 1, trackW, 2), 1, GCornersAll);
     int dotx = trackX + dotr + (hs->temp - lo) * usable / range;
     graphics_context_set_fill_color(ctx, tint);
@@ -561,7 +577,7 @@ static void draw_hourly(GContext *ctx, GRect b) {
 // ---- daily screen: next 6 days ---------------------------------------------
 
 static void draw_daily(GContext *ctx, GRect b) {
-  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_context_set_fill_color(ctx, theme_bg());
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
   time_t now = time(NULL);
@@ -593,10 +609,10 @@ static void draw_daily(GContext *ctx, GRect b) {
     time_t day = now + i * 86400;
     strftime(buf, sizeof(buf), "%a", localtime(&day));
     draw_text_in(ctx, buf, s_font_text, GRect(X + 6, ty, 44, 18),
-                 GColorWhite, GTextAlignmentLeft);
+                 theme_ink(), GTextAlignmentLeft);
 
     draw_text_in(ctx, wx_glyph(ds->code, false), s_font_wx_sm,
-                 GRect(X + 52, cy - 13, 28, 26), GColorWhite, GTextAlignmentCenter);
+                 GRect(X + 52, cy - 13, 28, 26), theme_ink(), GTextAlignmentCenter);
 
     snprintf(buf, sizeof(buf), "%d\xC2\xB0", ds->min);
     draw_text_in(ctx, buf, s_font_text, GRect(X, ty, 110, 18),
@@ -605,7 +621,7 @@ static void draw_daily(GContext *ctx, GRect b) {
     // Range bar: faint full track, a temperature-tinted segment placed where this
     // day's [min,max] falls in the week span.
     int barX = X + 116, barW = 38;
-    graphics_context_set_fill_color(ctx, GColorDarkGray);
+    graphics_context_set_fill_color(ctx, theme_track());
     graphics_fill_rect(ctx, GRect(barX, cy - 2, barW, 4), 2, GCornersAll);
     int sx0 = barX + barW * (ds->min - wlo) / wspan;
     int sx1 = barX + barW * (ds->max - wlo) / wspan;
@@ -641,7 +657,7 @@ static void draw_aviso(GContext *ctx, GRect b) {
 // ---- sun & moon card: daylight arc by day, moon phase after dark ------------
 
 static void draw_sunmoon(GContext *ctx, GRect b) {
-  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_context_set_fill_color(ctx, theme_bg());
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
   time_t now = time(NULL);
@@ -667,7 +683,7 @@ static void draw_sunmoon(GContext *ctx, GRect b) {
     // The whole path as a dim track, then the part the sun has already crossed
     // lit bright, so the daylight arc reads as luminous rather than grey.
     graphics_context_set_stroke_width(ctx, 3);
-    graphics_context_set_stroke_color(ctx, GColorDarkGray);
+    graphics_context_set_stroke_color(ctx, theme_track());
     graphics_draw_arc(ctx, af, GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(-90), DEG_TO_TRIGANGLE(90));
     if (prog > 0) {
       graphics_context_set_stroke_color(ctx, GColorPastelYellow);
@@ -719,9 +735,9 @@ static void draw_sunmoon(GContext *ctx, GRect b) {
                           : ss - GOLDEN_SECS;
       fmt_hhmm(buf, sizeof(buf), at);
       draw_text_in(ctx, lab, s_font_small, GRect(b.origin.x, b.origin.y + 164, b.size.w, 16),
-                   in_gold ? GColorChromeYellow : GColorLightGray, GTextAlignmentCenter);
+                   in_gold ? GColorChromeYellow : theme_dim(), GTextAlignmentCenter);
       draw_text_in(ctx, buf, s_font_text, GRect(b.origin.x, b.origin.y + 182, b.size.w, 22),
-                   in_gold ? GColorChromeYellow : GColorWhite, GTextAlignmentCenter);
+                   in_gold ? GColorChromeYellow : theme_ink(), GTextAlignmentCenter);
     }
   } else {
     // Blue hour: the civil-twilight window just outside daylight, dawn or dusk.
@@ -732,10 +748,10 @@ static void draw_sunmoon(GContext *ctx, GRect b) {
                      blue ? GColorPictonBlue : GColorLightGray);
     draw_moon(ctx, GPoint(cx, b.origin.y + 92), 38, s_wx.moon_illum, s_wx.moon_phase < 4);
     draw_text_in(ctx, MOON_NAME[s_wx.moon_phase & 7], s_font_text,
-                 GRect(b.origin.x, b.origin.y + 150, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+                 GRect(b.origin.x, b.origin.y + 150, b.size.w, 22), theme_ink(), GTextAlignmentCenter);
     snprintf(buf, sizeof(buf), "%d%% lit", s_wx.moon_illum);
     draw_text_in(ctx, buf, s_font_small, GRect(b.origin.x, b.origin.y + 176, b.size.w, 16),
-                 GColorLightGray, GTextAlignmentCenter);
+                 theme_dim(), GTextAlignmentCenter);
   }
 }
 
@@ -757,7 +773,7 @@ static void wind_tick(GContext *ctx, int cx, int cy, int R, int i32,
 }
 
 static void draw_wind(GContext *ctx, GRect b) {
-  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_context_set_fill_color(ctx, theme_bg());
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   draw_card_header(ctx, b, "WIND", GColorLightGray);
 
@@ -768,14 +784,14 @@ static void draw_wind(GContext *ctx, GRect b) {
   // points faint. The four cardinals are the letters, not a tick.
   for (int i = 0; i < 32; i++) {
     if (i % 8 == 0) continue;                                   // cardinal -> letter
-    if (i % 4 == 0)      wind_tick(ctx, cx, cy, R, i, 12, 3, GColorWhite);      // NE/SE/SW/NW
-    else if (i % 2 == 0) wind_tick(ctx, cx, cy, R, i,  8, 2, GColorLightGray);  // 16-point
-    else                 wind_tick(ctx, cx, cy, R, i,  5, 1, GColorDarkGray);   // fine
+    if (i % 4 == 0)      wind_tick(ctx, cx, cy, R, i, 12, 3, theme_ink());      // NE/SE/SW/NW
+    else if (i % 2 == 0) wind_tick(ctx, cx, cy, R, i,  8, 2, theme_dim());      // 16-point
+    else                 wind_tick(ctx, cx, cy, R, i,  5, 1, theme_track());    // fine
   }
-  draw_text_in(ctx, "N", s_font_text, GRect(cx - 9, cy - R - 4, 18, 18), GColorWhite, GTextAlignmentCenter);
-  draw_text_in(ctx, "S", s_font_text, GRect(cx - 9, cy + R - 14, 18, 18), GColorWhite, GTextAlignmentCenter);
-  draw_text_in(ctx, "E", s_font_text, GRect(cx + R - 16, cy - 10, 18, 18), GColorWhite, GTextAlignmentCenter);
-  draw_text_in(ctx, "W", s_font_text, GRect(cx - R - 2, cy - 10, 18, 18), GColorWhite, GTextAlignmentCenter);
+  draw_text_in(ctx, "N", s_font_text, GRect(cx - 9, cy - R - 4, 18, 18), theme_ink(), GTextAlignmentCenter);
+  draw_text_in(ctx, "S", s_font_text, GRect(cx - 9, cy + R - 14, 18, 18), theme_ink(), GTextAlignmentCenter);
+  draw_text_in(ctx, "E", s_font_text, GRect(cx + R - 16, cy - 10, 18, 18), theme_ink(), GTextAlignmentCenter);
+  draw_text_in(ctx, "W", s_font_text, GRect(cx - R - 2, cy - 10, 18, 18), theme_ink(), GTextAlignmentCenter);
 
   int kmh = s_wx.is_metric ? s_wx.wind_speed : (int)(s_wx.wind_speed * 1.609f);
   GColor wc = wind_color(kmh);
@@ -792,14 +808,14 @@ static void draw_wind(GContext *ctx, GRect b) {
   if (head && tail) {
     gpath_rotate_to(tail, a_to); gpath_move_to(tail, GPoint(cx, cy));
     gpath_rotate_to(head, a_to); gpath_move_to(head, GPoint(cx, cy));
-    graphics_context_set_fill_color(ctx, GColorDarkGray);
+    graphics_context_set_fill_color(ctx, theme_track());
     gpath_draw_filled(ctx, tail);
     graphics_context_set_fill_color(ctx, wc);
     gpath_draw_filled(ctx, head);
   }
   if (head) gpath_destroy(head);
   if (tail) gpath_destroy(tail);
-  graphics_context_set_fill_color(ctx, GColorWhite);
+  graphics_context_set_fill_color(ctx, theme_ink());
   graphics_fill_circle(ctx, GPoint(cx, cy), 2);
 
   // Speed: a big bold number with a small unit tucked beside its baseline, the
@@ -821,13 +837,13 @@ static void draw_wind(GContext *ctx, GRect b) {
   char buf[24];
   snprintf(buf, sizeof(buf), "from %s \xC2\xB7 gust %d", CARD16[s_wx.wind_dir & 15], s_wx.wind_gust);
   draw_text_in(ctx, buf, s_font_small, GRect(b.origin.x, b.origin.y + 182, b.size.w, 16),
-               GColorLightGray, GTextAlignmentCenter);
+               theme_dim(), GTextAlignmentCenter);
 }
 
 // ---- UV card: a ring from 0 to today's peak ---------------------------------
 
 static void draw_uv(GContext *ctx, GRect b) {
-  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_context_set_fill_color(ctx, theme_bg());
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   draw_card_header(ctx, b, "UV INDEX", GColorLightGray);
 
@@ -836,16 +852,16 @@ static void draw_uv(GContext *ctx, GRect b) {
   int peak = s_wx.uv_peak > 0 ? s_wx.uv_peak : 1;
   int pct = s_wx.uv * 100 / peak;
   GColor uc = uv_color(s_wx.uv);
-  draw_ring(ctx, rf, 10, pct, GColorDarkGray, uc);
+  draw_ring(ctx, rf, 10, pct, theme_track(), uc);
 
   char buf[8];
   snprintf(buf, sizeof(buf), "%d", s_wx.uv);
   draw_text_in(ctx, buf, s_font_xl, GRect(cx - 40, cy - 31, 80, 56), uc, GTextAlignmentCenter);
   draw_text_in(ctx, uv_band(s_wx.uv), s_font_text,
-               GRect(b.origin.x, cy + r + 6, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+               GRect(b.origin.x, cy + r + 6, b.size.w, 22), theme_ink(), GTextAlignmentCenter);
   snprintf(buf, sizeof(buf), "peak %d", s_wx.uv_peak);
   draw_text_in(ctx, buf, s_font_small, GRect(b.origin.x, cy + r + 30, b.size.w, 16),
-               GColorLightGray, GTextAlignmentCenter);
+               theme_dim(), GTextAlignmentCenter);
 
   // Inline legend: the WHO ramp with the marker on the current band, so the
   // ring colour reads without opening the scale sheet.
@@ -857,7 +873,7 @@ static void draw_uv(GContext *ctx, GRect b) {
 // ---- air quality card: the ICA 1-6 band as a ring ---------------------------
 
 static void draw_air(GContext *ctx, GRect b) {
-  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_context_set_fill_color(ctx, theme_bg());
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   draw_card_header(ctx, b, "AIR QUALITY", GColorLightGray);
 
@@ -865,15 +881,15 @@ static void draw_air(GContext *ctx, GRect b) {
   GRect rf = GRect(cx - r, cy - r, 2 * r, 2 * r);
   int band = s_wx.aqi < 1 ? 1 : (s_wx.aqi > 6 ? 6 : s_wx.aqi);
   GColor ac = aqi_color(band);
-  draw_ring(ctx, rf, 10, band * 100 / 6, GColorDarkGray, ac);   // 1..6 fills the ring in sixths
+  draw_ring(ctx, rf, 10, band * 100 / 6, theme_track(), ac);   // 1..6 fills the ring in sixths
 
   char buf[8];
   snprintf(buf, sizeof(buf), "%d", band);
   draw_text_in(ctx, buf, s_font_xl, GRect(cx - 40, cy - 31, 80, 56), ac, GTextAlignmentCenter);
   draw_text_in(ctx, aqi_name(band), s_font_text,
-               GRect(b.origin.x, cy + r + 6, b.size.w, 22), GColorWhite, GTextAlignmentCenter);
+               GRect(b.origin.x, cy + r + 6, b.size.w, 22), theme_ink(), GTextAlignmentCenter);
   draw_text_in(ctx, "index 1-6", s_font_small,
-               GRect(b.origin.x, cy + r + 30, b.size.w, 16), GColorLightGray, GTextAlignmentCenter);
+               GRect(b.origin.x, cy + r + 30, b.size.w, 16), theme_dim(), GTextAlignmentCenter);
 
   // Inline legend: the MITECO ramp (blue best, violet worst) with the marker on
   // the current category, so the ring colour reads at a glance.
@@ -887,16 +903,16 @@ static void draw_air(GContext *ctx, GRect b) {
 // the label dimmed beneath it (the phone's metric-chip idiom, ported as a tile).
 static void draw_metric_tile(GContext *ctx, GRect t, const char *val,
                              const char *label, GColor vc) {
-  graphics_context_set_stroke_color(ctx, GColorDarkGray);
+  graphics_context_set_stroke_color(ctx, theme_track());
   graphics_draw_round_rect(ctx, t, 6);
   draw_text_in(ctx, val, s_font_big, GRect(t.origin.x, t.origin.y + 16, t.size.w, 34),
                vc, GTextAlignmentCenter);
   draw_text_in(ctx, label, s_font_small, GRect(t.origin.x, t.origin.y + t.size.h - 24, t.size.w, 16),
-               GColorLightGray, GTextAlignmentCenter);
+               theme_dim(), GTextAlignmentCenter);
 }
 
 static void draw_details(GContext *ctx, GRect b) {
-  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_context_set_fill_color(ctx, theme_bg());
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   draw_card_header(ctx, b, "DETAILS", GColorLightGray);
 
@@ -912,7 +928,7 @@ static void draw_details(GContext *ctx, GRect b) {
   draw_metric_tile(ctx, GRect(gx, gy, colW, rowH), buf, "Feels",
                    temp_ink(s_wx.feels_like, s_wx.is_metric));
   snprintf(buf, sizeof(buf), "%d%%", s_wx.humidity);
-  draw_metric_tile(ctx, GRect(c1, gy, colW, rowH), buf, "Humidity", GColorWhite);
+  draw_metric_tile(ctx, GRect(c1, gy, colW, rowH), buf, "Humidity", theme_ink());
   snprintf(buf, sizeof(buf), "%d", s_wx.precip_mm);
   draw_metric_tile(ctx, GRect(gx, r1, colW, rowH), buf, "Precip mm", GColorPictonBlue);
   int kmh = s_wx.is_metric ? s_wx.wind_gust : (int)(s_wx.wind_gust * 1.609f);
@@ -926,7 +942,7 @@ static void draw_details(GContext *ctx, GRect b) {
 // official AEMET boletin in Spain. The watch only word-wraps the text it is sent.
 
 static void draw_bulletin(GContext *ctx, GRect b) {
-  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_context_set_fill_color(ctx, theme_bg());
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   draw_card_header(ctx, b, "FORECAST", GColorLightGray);
 
@@ -934,7 +950,7 @@ static void draw_bulletin(GContext *ctx, GRect b) {
   // in the body height; longer prose (a full AEMET boletin) is capped on phone.
   GRect body = GRect(b.origin.x + 12, b.origin.y + 32, b.size.w - 24, b.size.h - 40);
   const char *s = s_bulletin[0] ? s_bulletin : "No forecast yet.";
-  draw_text_in(ctx, s, s_font_small, body, GColorWhite, GTextAlignmentLeft);
+  draw_text_in(ctx, s, s_font_small, body, theme_ink(), GTextAlignmentLeft);
 }
 
 // ---- reference-scale sheets (docs/06) ---------------------------------------
@@ -950,10 +966,10 @@ static bool sheet_card(int c) {
 
 static void draw_scale_sheet(GContext *ctx, GRect b, const char *title,
                              const ScaleRow *rows, int n) {
-  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_context_set_fill_color(ctx, theme_bg());
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   draw_text_in(ctx, title, s_font_small, GRect(b.origin.x + 8, b.origin.y + 6, b.size.w - 16, 16),
-               GColorLightGray, GTextAlignmentLeft);
+               theme_dim(), GTextAlignmentLeft);
 
   int top = b.origin.y + 34;
   int rh = (b.size.h - 42) / n;
@@ -963,9 +979,9 @@ static void draw_scale_sheet(GContext *ctx, GRect b, const char *title,
     graphics_context_set_fill_color(ctx, rows[i].col);
     graphics_fill_rect(ctx, GRect(b.origin.x + 10, ry + 3, 16, rh - 7), 3, GCornersAll);
     draw_text_in(ctx, rows[i].label, s_font_small,
-                 GRect(b.origin.x + 34, ry, b.size.w - 96, rh), GColorWhite, GTextAlignmentLeft);
+                 GRect(b.origin.x + 34, ry, b.size.w - 96, rh), theme_ink(), GTextAlignmentLeft);
     draw_text_in(ctx, rows[i].range, s_font_small,
-                 GRect(b.origin.x, ry, b.size.w - 10, rh), GColorLightGray, GTextAlignmentRight);
+                 GRect(b.origin.x, ry, b.size.w - 10, rh), theme_dim(), GTextAlignmentRight);
   }
 }
 
@@ -973,25 +989,25 @@ static void draw_scale_sheet(GContext *ctx, GRect b, const char *title,
 // with the marker at the current reading, plus the precip-blue note. Explains
 // the tint on Feels, Gust and Precip without a per-band table.
 static void draw_details_legend(GContext *ctx, GRect b) {
-  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_context_set_fill_color(ctx, theme_bg());
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   draw_card_header(ctx, b, "COLOUR LEGEND", GColorLightGray);
 
   int x = b.origin.x + 16, w = b.size.w - 32, hw = w / 2;
 
   draw_text_in(ctx, "Temperature", s_font_small, GRect(x, b.origin.y + 40, w, 16),
-               GColorLightGray, GTextAlignmentLeft);
+               theme_dim(), GTextAlignmentLeft);
   int c = s_wx.is_metric ? s_wx.temp : (s_wx.temp - 32) * 5 / 9;
   draw_ramp_bar(ctx, GRect(x, b.origin.y + 64, w, 12), TEMP_RAMP, 9, c + 8, 53);
-  draw_text_in(ctx, "cold", s_font_small, GRect(x, b.origin.y + 78, hw, 14), GColorLightGray, GTextAlignmentLeft);
-  draw_text_in(ctx, "hot",  s_font_small, GRect(x + hw, b.origin.y + 78, hw, 14), GColorLightGray, GTextAlignmentRight);
+  draw_text_in(ctx, "cold", s_font_small, GRect(x, b.origin.y + 78, hw, 14), theme_dim(), GTextAlignmentLeft);
+  draw_text_in(ctx, "hot",  s_font_small, GRect(x + hw, b.origin.y + 78, hw, 14), theme_dim(), GTextAlignmentRight);
 
   draw_text_in(ctx, "Wind", s_font_small, GRect(x, b.origin.y + 104, w, 16),
-               GColorLightGray, GTextAlignmentLeft);
+               theme_dim(), GTextAlignmentLeft);
   int kmh = s_wx.is_metric ? s_wx.wind_speed : (int)(s_wx.wind_speed * 1.609f);
   draw_ramp_bar(ctx, GRect(x, b.origin.y + 128, w, 12), WIND_RAMP, 8, kmh, 130);
-  draw_text_in(ctx, "calm",  s_font_small, GRect(x, b.origin.y + 142, hw, 14), GColorLightGray, GTextAlignmentLeft);
-  draw_text_in(ctx, "storm", s_font_small, GRect(x + hw, b.origin.y + 142, hw, 14), GColorLightGray, GTextAlignmentRight);
+  draw_text_in(ctx, "calm",  s_font_small, GRect(x, b.origin.y + 142, hw, 14), theme_dim(), GTextAlignmentLeft);
+  draw_text_in(ctx, "storm", s_font_small, GRect(x + hw, b.origin.y + 142, hw, 14), theme_dim(), GTextAlignmentRight);
 
   draw_text_in(ctx, "Precip shown in blue", s_font_small,
                GRect(x, b.origin.y + 172, w, 16), GColorPictonBlue, GTextAlignmentLeft);
@@ -1043,7 +1059,7 @@ static void draw_hold_hint(GContext *ctx, GRect b) {
   GPathInfo info = { 3, pts };
   GPath *p = gpath_create(&info);
   if (p) {
-    graphics_context_set_fill_color(ctx, GColorDarkGray);
+    graphics_context_set_fill_color(ctx, theme_track());
     gpath_draw_filled(ctx, p);
     gpath_destroy(p);
   }
@@ -1158,6 +1174,14 @@ static void select_click(ClickRecognizerRef r, void *ctx) {
 static void select_long(ClickRecognizerRef r, void *ctx) {
   if (s_sheet == SHEET_NONE && sheet_card(s_card)) { s_sheet = s_card; layer_mark_dirty(s_canvas); }
 }
+// A long UP flips dark <-> light on the watch itself, no phone round-trip; the
+// choice is persisted and mirrors the Clay Theme setting.
+static void up_long(ClickRecognizerRef r, void *ctx) {
+  s_light = !s_light;
+  persist_write_int(PKEY_THEME, s_light);
+  window_set_background_color(s_window, theme_bg());
+  layer_mark_dirty(s_canvas);
+}
 // BACK is subscribed (so it can close an open sheet), so it must pop the window
 // itself to keep exiting the app when no sheet is open.
 static void back_click(ClickRecognizerRef r, void *ctx) {
@@ -1170,6 +1194,7 @@ static void click_config(void *ctx) {
   window_single_click_subscribe(BUTTON_ID_SELECT, select_click);
   window_single_click_subscribe(BUTTON_ID_BACK, back_click);
   window_long_click_subscribe(BUTTON_ID_SELECT, 0, select_long, NULL);
+  window_long_click_subscribe(BUTTON_ID_UP, 0, up_long, NULL);
 }
 
 static void tick_handler(struct tm *t, TimeUnits units) {
@@ -1205,6 +1230,7 @@ static void load_weather(void) {
   if (persist_exists(PKEY_BULLETIN)) {
     persist_read_string(PKEY_BULLETIN, s_bulletin, sizeof(s_bulletin));
   }
+  s_light = persist_exists(PKEY_THEME) ? persist_read_int(PKEY_THEME) : false;
 
   // Card config: every card shown, boot on the hero, until Clay says otherwise.
   memset(&s_cfg, 1, sizeof(s_cfg));   // all show[] = 1
@@ -1240,6 +1266,11 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     }
     if ((tp = dict_find(iter, MESSAGE_KEY_CARD_ORDER)) && tp->value->cstring[0]) {
       apply_order_csv(tp->value->cstring);
+    }
+    if ((tp = dict_find(iter, MESSAGE_KEY_THEME))) {
+      s_light = tp->value->int32 ? true : false;
+      persist_write_int(PKEY_THEME, s_light);
+      window_set_background_color(s_window, theme_bg());
     }
     persist_write_data(PKEY_CARDS, &s_cfg, sizeof(s_cfg));
     if (!card_visible(s_card)) s_card = CARD_HERO;   // the open card may have just been hidden
@@ -1355,7 +1386,7 @@ static void init(void) {
   load_weather();
 
   s_window = window_create();
-  window_set_background_color(s_window, GColorBlack);
+  window_set_background_color(s_window, theme_bg());
   window_set_click_config_provider(s_window, click_config);
   window_set_window_handlers(s_window, (WindowHandlers){
     .load = window_load, .unload = window_unload,

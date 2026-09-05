@@ -85,7 +85,8 @@
       "SHOW_AIR",
       "SHOW_DETAILS",
       "SHOW_BULLETIN",
-      "CARD_ORDER"
+      "CARD_ORDER",
+      "THEME"
     ],
     "resources": {
       "media": [

@@ -48,6 +48,18 @@ var config = [
   {
     "type": "section",
     "items": [
+      { "type": "heading", "defaultValue": "Appearance" },
+      { "type": "select", "messageKey": "THEME", "label": "Theme", "defaultValue": "0",
+        "description": "Also switches on the watch with a long press of the UP button.",
+        "options": [
+          { "label": "Dark (black background)", "value": "0" },
+          { "label": "Light (white background)", "value": "1" },
+        ] },
+    ],
+  },
+  {
+    "type": "section",
+    "items": [
       { "type": "heading", "defaultValue": "AEMET (Spain)" },
       { "type": "text",
         "defaultValue": "Optional. In Spain, use the official AEMET source instead of Open-Meteo. Needs a free API key from opendata.aemet.es." },

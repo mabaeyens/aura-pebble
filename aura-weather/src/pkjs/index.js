@@ -78,6 +78,7 @@ function cardConfig(s) {
     SHOW_DETAILS: on('SHOW_DETAILS'), SHOW_BULLETIN: on('SHOW_BULLETIN'),
     CARD_BOOT: isNaN(boot) ? 0 : boot,
     CARD_ORDER: s.CARD_ORDER || '2,3,4,5,6,7,8,9',
+    THEME: parseInt(s.THEME, 10) || 0,
   };
 }
 
@@ -182,5 +183,8 @@ Pebble.addEventListener('showConfiguration', function () {
 Pebble.addEventListener('webviewclosed', function (e) {
   if (!e || !e.response) return;
   clay.getSettings(e.response);    // persists to localStorage under 'clay-settings'
+  // Push the config frame at once so the theme (and card layout) flips instantly,
+  // before the slower weather round-trip returns.
+  Pebble.sendAppMessage(cardConfig(readSettings()));
   refresh();
 });
