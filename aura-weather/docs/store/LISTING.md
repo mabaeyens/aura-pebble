@@ -20,7 +20,7 @@ Worldwide weather with Aura's living sky, on your wrist.
 
 ## Description
 
-Aura Weather carries my Spain weather app's design language onto the Pebble Time 2: a living sky you read at a glance. The hero screen draws the sun (a moon at night) arcing over a day-to-night gradient computed from the real sunrise and sunset times for your location, with no baked art, so it always matches the light outside.
+Aura Weather carries my Spain weather app's design language onto the Pebble Time 2: the weather you read at a glance. The hero screen leads with your location and the temperature right now, set over a strip of sky that shifts with the hour, from dawn through midday to night, computed from the real sunrise and sunset times for your location so it always matches the light outside. Under it sits a grid of the four things I check first, the wind, the UV, the humidity, and what it actually feels like, each one tinted by Aura's own colour ramps so a fierce sun or a biting wind shows before you read the number.
 
 Page through a deck of cards with UP and DOWN, with SELECT to refresh: the next eight hours, the next six days, a sun-and-moon card with golden and blue hour, a wind compass, UV and air-quality rings, a details grid, and a colour-coded warning card when one is active. Every number is tinted by Aura's own data ramps, so a hot day reads red, a calm wind reads teal, and the whole deck reads as one system. Cards appear only when they have something to say, and you choose which to show, reorder them, and pick the one the app opens on.
 
@@ -30,7 +30,7 @@ Free and open source.
 
 ## What is new in 1.0.0
 
-First public release. The full card deck, worldwide Open-Meteo data with optional AEMET in Spain, the procedural sun-over-sky hero, and a light theme you can toggle on the watch or from settings.
+First public release. The full card deck, worldwide Open-Meteo data with optional AEMET in Spain, the dashboard hero with its time-of-day sky, and a light theme you can toggle on the watch or from settings.
 
 ## Icons
 
@@ -44,7 +44,7 @@ The dashboard asks for two app icons. Both are the shared Aura brand icon and al
 
 ## Screenshots
 
-Captured on the `emery` (Pebble Time 2) emulator at native 200x228. The dark deck is the primary set; the light set showcases the theme. Hero and aviso are theme-independent (the hero sits over its sky scene, the aviso keeps its warning colour), so they are not duplicated for light.
+Captured on the `emery` (Pebble Time 2) emulator at native 200x228. The dark deck is the primary set; the light set showcases the theme. The aviso keeps its warning colour in either theme, so it is the one card not duplicated for light.
 
 Dark theme (primary deck):
 
@@ -64,6 +64,7 @@ Light theme (showcase):
 
 | Card | File |
 | --- | --- |
+| Hero | `weather-hero-light.png` |
 | Hourly | `weather-hourly-light.png` |
 | Daily | `weather-daily-light.png` |
 | Sun and Moon | `weather-sun-light.png` |
