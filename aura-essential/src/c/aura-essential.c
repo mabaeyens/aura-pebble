@@ -75,6 +75,8 @@ static bool s_wx_ok    = false;
 static GFont s_f_num;     // numeric complication labels, LECO (segmented)
 static GFont s_f_date;    // larger LECO for the date inside the calendar
 static GFont s_f_day;     // weekday word, bundled LECO 1976 (letters + numbers)
+static GFont s_f_atkinson;      // bundled Atkinson Hyperlegible Next, time font option
+static GFont s_f_atkinson_num;  // same face, sized for the complication labels
 static GBitmap *s_shoe_bmp;  // the Essential shoe icon, extracted bit-by-bit
 
 static GColor palette(int i) {
@@ -88,17 +90,20 @@ static GColor content_on(GColor bg) {
   return (lum >= 9) ? GColorBlack : GColorWhite;
 }
 
+// Complication labels follow the chosen time font's face for numerals: LECO
+// (segmented) for every font choice except Atkinson, which uses its own bundled
+// digits so the whole face reads in one consistent typeface.
+static GFont num_font(void) {
+  return (s_font == 4) ? s_f_atkinson_num : s_f_num;
+}
+
 static GFont time_font(void) {
   switch (s_font) {
     case 1:  return fonts_get_system_font(FONT_KEY_ROBOTO_BOLD_SUBSET_49);
     case 2:  return fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD);
     case 3:  return fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
-    default:
-#ifdef PBL_PLATFORM_EMERY
-      return fonts_get_system_font(FONT_KEY_LECO_60_NUMBERS_AM_PM);   // Pebble Time 2
-#else
-      return fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);         // no 60px LECO here
-#endif
+    case 4:  return s_f_atkinson;
+    default: return fonts_get_system_font(FONT_KEY_LECO_60_NUMBERS_AM_PM);   // emery-only face
   }
 }
 
@@ -111,6 +116,7 @@ static int time_voffset(void) {
     case 1:  return -3;   // Roboto 49
     case 2:  return -2;   // Bitham 42
     case 3:  return  0;   // Gothic 28
+    case 4:  return -10;  // Atkinson Hyperlegible Next 60: measured against emery
     default: return -9;   // LECO
   }
 }
@@ -156,9 +162,9 @@ static int wx_category(int code) {
 
 static void icon_heart(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_circle(ctx, GPoint(cx - 10, cy - 7), 11);
-  graphics_fill_circle(ctx, GPoint(cx + 10, cy - 7), 11);
-  GPoint tri[3] = { { cx - 20, cy - 1 }, { cx + 20, cy - 1 }, { cx, cy + 22 } };
+  graphics_fill_circle(ctx, GPoint(cx - 12, cy - 8), 13);
+  graphics_fill_circle(ctx, GPoint(cx + 12, cy - 8), 13);
+  GPoint tri[3] = { { cx - 23, cy - 1 }, { cx + 23, cy - 1 }, { cx, cy + 25 } };
   GPathInfo info = { .num_points = 3, .points = tri };
   GPath *p = gpath_create(&info);
   gpath_draw_filled(ctx, p);
@@ -167,7 +173,7 @@ static void icon_heart(GContext *ctx, int cx, int cy, GColor col) {
 
 // A vertical battery, filled from the bottom by pct.
 static void icon_battery(GContext *ctx, int cx, int cy, GColor col, int pct) {
-  int w = 24, h = 36;   // sized to sit level with the other complication icons
+  int w = 28, h = 38;   // sized to sit level with the other complication icons
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;
   GRect body = GRect(cx - w / 2, cy - h / 2 + 2, w, h);   // +2 to leave room for the nub above
@@ -176,9 +182,9 @@ static void icon_battery(GContext *ctx, int cx, int cy, GColor col, int pct) {
   graphics_context_set_stroke_color(ctx, col);
   graphics_context_set_stroke_width(ctx, 3);
   graphics_draw_rect(ctx, body);
-  int inner = h - 8;
+  int inner = h - 9;
   int fill = inner * pct / 100;   // charge level: fills from the bottom, empties toward it
-  graphics_fill_rect(ctx, GRect(body.origin.x + 4, body.origin.y + 4 + (inner - fill), w - 8, fill),
+  graphics_fill_rect(ctx, GRect(body.origin.x + 5, body.origin.y + 5 + (inner - fill), w - 9, fill),
                      0, GCornerNone);
 }
 
@@ -186,27 +192,28 @@ static void icon_battery(GContext *ctx, int cx, int cy, GColor col, int pct) {
 // halo, and the black binder tabs and day number are added by calendar_detail.
 static void icon_calendar(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
-  graphics_fill_rect(ctx, GRect(cx - 18, cy - 11, 36, 33), 4, GCornersAll);   // rounded body
+  graphics_fill_rect(ctx, GRect(cx - 21, cy - 13, 41, 38), 5, GCornersAll);   // rounded body
 }
 
 // Black detail over the white calendar body: two binder tabs sticking up and
 // the day-of-month in the segmented font, both black as on the original.
 static void calendar_detail(GContext *ctx, int cx, int cy, int mday) {
   graphics_context_set_fill_color(ctx, GColorBlack);
-  graphics_fill_rect(ctx, GRect(cx - 11, cy - 20, 5, 12), 2, GCornersTop);   // binder tabs
-  graphics_fill_rect(ctx, GRect(cx + 6,  cy - 20, 5, 12), 2, GCornersTop);
+  graphics_fill_rect(ctx, GRect(cx - 13, cy - 23, 6, 14), 2, GCornersTop);   // binder tabs
+  graphics_fill_rect(ctx, GRect(cx + 7,  cy - 23, 6, 14), 2, GCornersTop);
   char d[3];
   snprintf(d, sizeof(d), "%d", mday);
   graphics_context_set_text_color(ctx, GColorBlack);
+  GFont df = (s_font == 4) ? s_f_atkinson_num : s_f_date;   // calendar digit matches the chosen time face
   // Vertically centre the date in the readable white area. The body runs
-  // cy-11..cy+22; the tabs cover the very top, so the visible white centres a
+  // cy-13..cy+25; the tabs cover the very top, so the visible white centres a
   // little below the body midpoint. Measure the glyph and place its box so the
   // digit sits on that centre (LECO's tall line box otherwise bottom-aligns it).
-  GRect box = GRect(cx - 18, cy - 3, 36, 28);
+  GRect box = GRect(cx - 21, cy - 3, 41, 32);
   GSize sz = graphics_text_layout_get_content_size(
-      d, s_f_date, box, GTextOverflowModeFill, GTextAlignmentCenter);
+      d, df, box, GTextOverflowModeFill, GTextAlignmentCenter);
   box.origin.y = (cy + 3) - sz.h / 2;   // +3 (not the body midpoint): LECO sits low in its line box
-  graphics_draw_text(ctx, d, s_f_date, box,
+  graphics_draw_text(ctx, d, df, box,
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
@@ -216,14 +223,14 @@ static void calendar_detail(GContext *ctx, int cx, int cy, int mday) {
 static void wx_cloud(GContext *ctx, int cx, int cy, GColor col) {
   graphics_context_set_fill_color(ctx, col);
   // Bottom bumps: three overlapping discs on a baseline -> two valleys between them.
-  graphics_fill_circle(ctx, GPoint(cx - 11, cy + 3), 7);
-  graphics_fill_circle(ctx, GPoint(cx,      cy + 4), 7);
-  graphics_fill_circle(ctx, GPoint(cx + 11, cy + 3), 7);
+  graphics_fill_circle(ctx, GPoint(cx - 13, cy + 3), 8);
+  graphics_fill_circle(ctx, GPoint(cx,      cy + 5), 8);
+  graphics_fill_circle(ctx, GPoint(cx + 13, cy + 3), 8);
   // Top lobes: a big centre puff and a smaller shoulder for a lumpy crown.
-  graphics_fill_circle(ctx, GPoint(cx - 5, cy - 5), 10);
-  graphics_fill_circle(ctx, GPoint(cx + 8, cy - 2), 8);
+  graphics_fill_circle(ctx, GPoint(cx - 6, cy - 6), 12);
+  graphics_fill_circle(ctx, GPoint(cx + 9, cy - 2), 9);
   // Body: bridge the lobes to the bumps without reaching the scalloped base.
-  graphics_fill_rect(ctx, GRect(cx - 16, cy - 3, 32, 7), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(cx - 18, cy - 3, 37, 8), 0, GCornerNone);
 }
 
 static void wx_sun(GContext *ctx, int cx, int cy, GColor col, int r) {
@@ -235,7 +242,7 @@ static void wx_sun(GContext *ctx, int cx, int cy, GColor col, int r) {
     int32_t a = TRIG_MAX_ANGLE * i / 8;
     int s = sin_lookup(a), c = cos_lookup(a);
     GPoint p1 = { cx + (r + 3) * s / TRIG_MAX_RATIO, cy - (r + 3) * c / TRIG_MAX_RATIO };
-    GPoint p2 = { cx + (r + 8) * s / TRIG_MAX_RATIO, cy - (r + 8) * c / TRIG_MAX_RATIO };
+    GPoint p2 = { cx + (r + 9) * s / TRIG_MAX_RATIO, cy - (r + 9) * c / TRIG_MAX_RATIO };
     graphics_draw_line(ctx, p1, p2);
   }
 }
@@ -259,34 +266,34 @@ static void wx_sun_outlined(GContext *ctx, int cx, int cy, GColor fill, int r) {
 static void icon_weather(GContext *ctx, int cx, int cy, GColor col, int code, bool ok) {
   if (!ok) { wx_cloud(ctx, cx, cy, col); return; }
   switch (wx_category(code)) {
-    case WX_CLEAR:  wx_sun(ctx, cx, cy, col, 11); break;
+    case WX_CLEAR:  wx_sun(ctx, cx, cy, col, 13); break;
     // Cloud first, then the sun on top so the sun is completely visible; the sun
     // carries its own black outline (wx_sun_outlined) to separate it from the cloud.
-    case WX_PARTLY: wx_cloud(ctx, cx + 4, cy + 5, col); wx_sun_outlined(ctx, cx - 8, cy - 8, col, 7); break;
+    case WX_PARTLY: wx_cloud(ctx, cx + 5, cy + 6, col); wx_sun_outlined(ctx, cx - 9, cy - 9, col, 8); break;
     case WX_CLOUD:  wx_cloud(ctx, cx, cy, col); break;
     case WX_FOG:
       graphics_context_set_stroke_color(ctx, col);
       graphics_context_set_stroke_width(ctx, 3);
       for (int i = 0; i < 4; i++)
-        graphics_draw_line(ctx, GPoint(cx - 17, cy - 10 + i * 7), GPoint(cx + 17, cy - 10 + i * 7));
+        graphics_draw_line(ctx, GPoint(cx - 20, cy - 12 + i * 8), GPoint(cx + 20, cy - 12 + i * 8));
       break;
     case WX_RAIN:
-      wx_cloud(ctx, cx, cy - 5, col);
+      wx_cloud(ctx, cx, cy - 6, col);
       graphics_context_set_stroke_color(ctx, col);
       graphics_context_set_stroke_width(ctx, 3);
       for (int i = 0; i < 3; i++)
-        graphics_draw_line(ctx, GPoint(cx - 11 + i * 11, cy + 13), GPoint(cx - 11 + i * 11, cy + 22));
+        graphics_draw_line(ctx, GPoint(cx - 13 + i * 13, cy + 15), GPoint(cx - 13 + i * 13, cy + 25));
       break;
     case WX_SNOW:
-      wx_cloud(ctx, cx, cy - 5, col);
+      wx_cloud(ctx, cx, cy - 6, col);
       graphics_context_set_fill_color(ctx, col);
       for (int i = 0; i < 3; i++)
-        graphics_fill_circle(ctx, GPoint(cx - 11 + i * 11, cy + 17), 3);
+        graphics_fill_circle(ctx, GPoint(cx - 13 + i * 13, cy + 20), 3);
       break;
     case WX_STORM: {
-      wx_cloud(ctx, cx, cy - 5, col);
+      wx_cloud(ctx, cx, cy - 6, col);
       graphics_context_set_fill_color(ctx, col);
-      GPoint bolt[4] = { { cx + 3, cy + 8 }, { cx - 7, cy + 20 }, { cx + 1, cy + 20 }, { cx - 4, cy + 30 } };
+      GPoint bolt[4] = { { cx + 3, cy + 9 }, { cx - 8, cy + 23 }, { cx + 1, cy + 23 }, { cx - 5, cy + 35 } };
       GPathInfo info = { .num_points = 4, .points = bolt };
       GPath *p = gpath_create(&info);
       gpath_draw_filled(ctx, p);
@@ -317,11 +324,14 @@ static void render_icon(GContext *ctx, int type, int cx, int dx, int dy, GColor 
 // the original Essential where the labels are plain white text.
 static void render_label(GContext *ctx, int type, int cx, int cell_w, GColor col) {
   char label[12] = "";
-  GFont f = s_f_num;   // LECO segmented digits for everything numeric
+  GFont f = num_font();   // LECO segmented digits, or Atkinson's own if that's the time font
   switch (type) {
     case C_STEPS: {
       int s = today_steps();
-      if (s >= 0) snprintf(label, sizeof(label), "%d", s);   // LECO has no 'K'
+      int th = s / 1000;
+      if (s >= 1000 && th < 10) snprintf(label, sizeof(label), "%d,%02d", th, (s % 1000) / 10);   // 3,88
+      else if (s >= 1000) snprintf(label, sizeof(label), "%d,%d", th, (s % 1000) / 100);           // 10,1 (2-digit thousands: 1 decimal keeps it to 3 sig figs)
+      else if (s >= 0) snprintf(label, sizeof(label), "%d", s);
       break;
     }
     case C_HEART: {
@@ -339,7 +349,7 @@ static void render_label(GContext *ctx, int type, int cx, int cell_w, GColor col
       struct tm *t = localtime(&now);
       strftime(label, sizeof(label), "%a", t);
       upcase(label);
-      f = s_f_day;   // weekday word in bundled LECO, on par with the numeric labels
+      f = (s_font == 4) ? s_f_atkinson_num : s_f_day;   // weekday word matches the chosen time face
       break;
     }
     case C_WEATHER: {
@@ -363,7 +373,8 @@ static void draw_comp(GContext *ctx, int type, int cx, int cell_w) {
     // The shoe is a bit-by-bit bitmap copy of the original Essential icon; it
     // already carries its own black outline, so it needs no vector halo.
     GRect r = gbitmap_get_bounds(s_shoe_bmp);
-    GRect dst = GRect(cx - r.size.w / 2, ICON_CY - r.size.h / 2, r.size.w, r.size.h);
+    int sw = r.size.w, sh = r.size.h;   // pre-scaled asset (54x41): draw 1:1, no runtime resize distortion
+    GRect dst = GRect(cx - sw / 2, ICON_CY - sh / 2, sw, sh);
     graphics_context_set_compositing_mode(ctx, GCompOpSet);
     graphics_draw_bitmap_in_rect(ctx, s_shoe_bmp, dst);
   } else {
@@ -498,9 +509,11 @@ static void window_unload(Window *window) {
 }
 
 static void init(void) {
-  s_f_num  = fonts_get_system_font(FONT_KEY_LECO_20_BOLD_NUMBERS);
+  s_f_num  = fonts_get_system_font(FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM);
   s_f_date = fonts_get_system_font(FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM);
-  s_f_day  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_LECO_20));
+  s_f_day  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_LECO_26));
+  s_f_atkinson = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_ATKINSON_60));
+  s_f_atkinson_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_ATKINSON_26));
   s_shoe_bmp = gbitmap_create_with_resource(RESOURCE_ID_IMG_SHOE);
 
   load_settings();
@@ -524,6 +537,8 @@ static void deinit(void) {
   battery_state_service_unsubscribe();
   if (s_shoe_bmp) gbitmap_destroy(s_shoe_bmp);
   if (s_f_day) fonts_unload_custom_font(s_f_day);
+  if (s_f_atkinson) fonts_unload_custom_font(s_f_atkinson);
+  if (s_f_atkinson_num) fonts_unload_custom_font(s_f_atkinson_num);
   window_destroy(s_window);
 }
 
