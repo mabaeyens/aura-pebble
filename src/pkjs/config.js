@@ -34,7 +34,8 @@ var FONT_OPTIONS = [
   { "label": "LECO (segmented)", "value": "0" },
   { "label": "Roboto (bold)", "value": "1" },
   { "label": "Bitham (display)", "value": "2" },
-  { "label": "Gothic (plain)", "value": "3" }
+  { "label": "Gothic (plain)", "value": "3" },
+  { "label": "Atkinson Hyperlegible", "value": "4" }
 ];
 
 var SEP_OPTIONS = [{ "label": "Off", "value": "-1" }].concat(COLOR_OPTIONS);
