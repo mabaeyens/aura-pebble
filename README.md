@@ -72,9 +72,10 @@ The analog dial is set in **Liberation Sans** (metric-compatible with Helvetica)
 - Liberation Sans, © Red Hat, Inc., SIL OFL 1.1.
 - Weather Icons, © Erik Flowers, SIL OFL 1.1.
 
-The Essential face draws its numbers in the Pebble system **LECO** font, and its weekday word in **LECO 1976 Regular** by Samuel Čarnoký (CarnokyType) — the display face the system LECO is modelled on, which unlike the system font also carries letters. It is bundled and subset to the glyphs used under [`aura-essential/resources/fonts/`](aura-essential/resources/fonts). Unlike the analog fonts it is not open-licensed: LECO 1976 Regular is offered free of charge on MyFonts under its Desktop and App licenses, which is how it is used here.
+The Essential face draws its numbers in the Pebble system **LECO** font, and its weekday word in **LECO 1976 Regular** by Samuel Čarnoký (CarnokyType) — the display face the system LECO is modelled on, which unlike the system font also carries letters. It is bundled and subset to the glyphs used under [`aura-essential/resources/fonts/`](aura-essential/resources/fonts). Unlike the analog fonts it is not open-licensed: LECO 1976 Regular is offered free of charge on MyFonts under its Desktop and App licenses, which is how it is used here. The clock can also be set to **Atkinson Hyperlegible Next** (SIL OFL 1.1), a high-legibility face from the Braille Institute, bundled and subset the same way.
 
 - LECO 1976 Regular, © Samuel Čarnoký / CarnokyType, free MyFonts Desktop + App license.
+- Atkinson Hyperlegible Next, © Braille Institute of America, SIL OFL 1.1.
 
 ## Built with
 
