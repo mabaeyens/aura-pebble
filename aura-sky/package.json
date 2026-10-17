@@ -1,0 +1,107 @@
+{
+  "name": "aura-sky",
+  "author": "Miguel Angel Baeyens",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {
+    "pebble-clay": "^1.0.4"
+  },
+  "pebble": {
+    "displayName": "Aura Sky Weather",
+    "uuid": "6f1c2b3a-5d4e-4a7b-9c10-2a8e7d41b0a1",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "capabilities": [
+      "configurable",
+      "location"
+    ],
+    "targetPlatforms": [
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": false
+    },
+    "messageKeys": [
+      "WX_OK",
+      "WX_NAME",
+      "WX_TEMP",
+      "WX_TMIN",
+      "WX_TMAX",
+      "WX_CODE",
+      "WX_POP",
+      "WX_SUNRISE",
+      "WX_SUNSET",
+      "WX_UNITS",
+      "WX_UPDATED",
+      "WX_WIND",
+      "WX_MOON",
+      "WX_MOONILL",
+      "H_IDX",
+      "H_TEMP",
+      "H_CODE",
+      "H_POP",
+      "D_IDX",
+      "D_MIN",
+      "D_MAX",
+      "D_CODE",
+      "D_POP",
+      "UNITS",
+      "LAT",
+      "LON",
+      "AEMET_KEY",
+      "USE_AEMET",
+      "SEARCH",
+      "CITY",
+      "USE_GPS",
+      "REFRESH"
+    ],
+    "resources": {
+      "media": [
+        {
+          "type": "bitmap",
+          "name": "IMG_MENU_ICON",
+          "file": "images/menu-icon.png"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_48",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
+          "characterRegex": "[-0-9\u00b0]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_20",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
+          "characterRegex": "[-0-9A-Za-z\u00e0\u00e1\u00e2\u00e4\u00e3\u00e8\u00e9\u00ea\u00eb\u00ec\u00ed\u00ee\u00ef\u00f2\u00f3\u00f4\u00f6\u00f5\u00f9\u00fa\u00fb\u00fc\u00f1\u00e7\u00f8\u00e5\u00c0\u00c1\u00c2\u00c4\u00c3\u00c8\u00c9\u00ca\u00cb\u00cc\u00cd\u00ce\u00cf\u00d2\u00d3\u00d4\u00d6\u00d5\u00d9\u00da\u00db\u00dc\u00d1\u00c7\u00d8\u00c5\u00b0\u00ba\u00aa%/,.:();!' ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_16",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
+          "characterRegex": "[-0-9A-Za-z\u00e0\u00e1\u00e2\u00e4\u00e3\u00e8\u00e9\u00ea\u00eb\u00ec\u00ed\u00ee\u00ef\u00f2\u00f3\u00f4\u00f6\u00f5\u00f9\u00fa\u00fb\u00fc\u00f1\u00e7\u00f8\u00e5\u00c0\u00c1\u00c2\u00c4\u00c3\u00c8\u00c9\u00ca\u00cb\u00cc\u00cd\u00ce\u00cf\u00d2\u00d3\u00d4\u00d6\u00d5\u00d9\u00da\u00db\u00dc\u00d1\u00c7\u00d8\u00c5\u00b0\u00ba\u00aa%/,.:();!' ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_14",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
+          "characterRegex": "[-0-9A-Za-z\u00e0\u00e1\u00e2\u00e4\u00e3\u00e8\u00e9\u00ea\u00eb\u00ec\u00ed\u00ee\u00ef\u00f2\u00f3\u00f4\u00f6\u00f5\u00f9\u00fa\u00fb\u00fc\u00f1\u00e7\u00f8\u00e5\u00c0\u00c1\u00c2\u00c4\u00c3\u00c8\u00c9\u00ca\u00cb\u00cc\u00cd\u00ce\u00cf\u00d2\u00d3\u00d4\u00d6\u00d5\u00d9\u00da\u00db\u00dc\u00d1\u00c7\u00d8\u00c5\u00b0\u00ba\u00aa%/,.:();!' ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_WI_30",
+          "file": "fonts/WeatherIcons-Regular.ttf",
+          "characterRegex": "[\uf00d\uf02e\uf002\uf086\uf041\uf013\uf014\uf01c\uf019\uf018\uf01b\uf01e]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_WI_20",
+          "file": "fonts/WeatherIcons-Regular.ttf",
+          "characterRegex": "[\uf00d\uf02e\uf002\uf086\uf041\uf013\uf014\uf01c\uf019\uf018\uf01b\uf01e]"
+        }
+      ]
+    }
+  }
+}
