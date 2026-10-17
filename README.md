@@ -19,7 +19,7 @@ Aura on the phone draws around 250 illustrated weather scenes over a live sky. A
 
 The Essential face on the Pebble Time 2 emulator, in five of its themes (every block colour and complication is configurable):
 
-![Essential, classic theme](docs/store/essential-classic.png) ![Essential, ocean theme](docs/store/essential-ocean.png) ![Essential, midnight theme](docs/store/essential-midnight.png) ![Essential, forest theme](docs/store/essential-forest.png) ![Essential, sunset theme](docs/store/essential-sunset.png)
+![Essential, classic theme](docs/store/essential-classic.png) ![Essential, ocean theme](docs/store/essential-ocean.png) ![Essential, midnight theme](docs/store/essential-midnight.png) ![Essential, forest theme](docs/store/essential-forest.png) ![Essential, dusk theme](docs/store/essential-dusk.png)
 
 Aura Essential is live on the Pebble appstore at [apps.repebble.com/aura-essential](https://apps.repebble.com/aura-essential_19335d2e746b4d6aa6ba8c63). Install it straight to a Pebble Time 2 from the Pebble phone app.
 

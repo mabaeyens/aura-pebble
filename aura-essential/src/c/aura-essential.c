@@ -167,6 +167,7 @@ static void icon_heart(GContext *ctx, int cx, int cy, GColor col) {
   GPoint tri[3] = { { cx - 23, cy - 1 }, { cx + 23, cy - 1 }, { cx, cy + 25 } };
   GPathInfo info = { .num_points = 3, .points = tri };
   GPath *p = gpath_create(&info);
+  if (!p) return;   // out of heap: skip the point, the two circles still draw
   gpath_draw_filled(ctx, p);
   gpath_destroy(p);
 }
@@ -296,8 +297,10 @@ static void icon_weather(GContext *ctx, int cx, int cy, GColor col, int code, bo
       GPoint bolt[4] = { { cx + 3, cy + 9 }, { cx - 8, cy + 23 }, { cx + 1, cy + 23 }, { cx - 5, cy + 35 } };
       GPathInfo info = { .num_points = 4, .points = bolt };
       GPath *p = gpath_create(&info);
-      gpath_draw_filled(ctx, p);
-      gpath_destroy(p);
+      if (p) {
+        gpath_draw_filled(ctx, p);
+        gpath_destroy(p);
+      }
       break;
     }
   }
@@ -494,6 +497,20 @@ static void load_settings(void) {
   if (persist_exists(PKEY_WX_OK))     s_wx_ok   = persist_read_bool(PKEY_WX_OK);
 }
 
+#define INBOX_SIZE  1024   // a full Clay settings frame is ~350 B; headroom for long city names
+#define OUTBOX_SIZE 64
+
+#if defined(PBL_HEALTH)
+// Redraw as soon as the heart-rate sensor reports a new reading (or the step
+// count moves), instead of waiting for the next minute tick.
+static void health_handler(HealthEventType event, void *context) {
+  if (event == HealthEventHeartRateUpdate || event == HealthEventMovementUpdate ||
+      event == HealthEventSignificantUpdate) {
+    layer_mark_dirty(s_layer);
+  }
+}
+#endif
+
 static void tick_handler(struct tm *t, TimeUnits units) { layer_mark_dirty(s_layer); }
 static void battery_handler(BatteryChargeState state)   { layer_mark_dirty(s_layer); }
 
@@ -511,7 +528,7 @@ static void window_unload(Window *window) {
 static void init(void) {
   s_f_num  = fonts_get_system_font(FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM);
   s_f_date = fonts_get_system_font(FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM);
-  s_f_day  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_LECO_26));
+  s_f_day  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_LECO_28));
   s_f_atkinson = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_ATKINSON_60));
   s_f_atkinson_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_ATKINSON_26));
   s_shoe_bmp = gbitmap_create_with_resource(RESOURCE_ID_IMG_SHOE);
@@ -527,14 +544,22 @@ static void init(void) {
 
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   battery_state_service_subscribe(battery_handler);
+#if defined(PBL_HEALTH)
+  health_service_events_subscribe(health_handler, NULL);
+#endif
 
   app_message_register_inbox_received(inbox_received_handler);
-  app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
+  // The watch only receives (Clay settings incl. the city strings, and the weather
+  // frame) and never sends, so the system maximum buffers just waste heap.
+  app_message_open(INBOX_SIZE, OUTBOX_SIZE);
 }
 
 static void deinit(void) {
   tick_timer_service_unsubscribe();
   battery_state_service_unsubscribe();
+#if defined(PBL_HEALTH)
+  health_service_events_unsubscribe();
+#endif
   if (s_shoe_bmp) gbitmap_destroy(s_shoe_bmp);
   if (s_f_day) fonts_unload_custom_font(s_f_day);
   if (s_f_atkinson) fonts_unload_custom_font(s_f_atkinson);
