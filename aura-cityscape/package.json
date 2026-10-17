@@ -1,0 +1,107 @@
+{
+  "name": "aura-cityscape-weather",
+  "author": "Miguel Angel Baeyens",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {
+    "pebble-clay": "^1.0.4"
+  },
+  "pebble": {
+    "displayName": "Aura Cityscape Weather",
+    "uuid": "3b9d7e52-81c4-4f6a-a2d3-c5e90f1b7d62",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "capabilities": [
+      "configurable",
+      "location"
+    ],
+    "targetPlatforms": [
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": false
+    },
+    "messageKeys": [
+      "WX_OK",
+      "WX_NAME",
+      "WX_TEMP",
+      "WX_TMIN",
+      "WX_TMAX",
+      "WX_CODE",
+      "WX_POP",
+      "WX_SUNRISE",
+      "WX_SUNSET",
+      "WX_UNITS",
+      "WX_UPDATED",
+      "WX_WIND",
+      "WX_MOON",
+      "WX_MOONILL",
+      "H_IDX",
+      "H_TEMP",
+      "H_CODE",
+      "H_POP",
+      "D_IDX",
+      "D_MIN",
+      "D_MAX",
+      "D_CODE",
+      "D_POP",
+      "UNITS",
+      "LAT",
+      "LON",
+      "AEMET_KEY",
+      "USE_AEMET",
+      "SEARCH",
+      "CITY",
+      "USE_GPS",
+      "REFRESH"
+    ],
+    "resources": {
+      "media": [
+        {
+          "type": "bitmap",
+          "name": "IMG_MENU_ICON",
+          "file": "images/menu-icon.png"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_48",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
+          "characterRegex": "[-0-9°]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_20",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
+          "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%/,.:();!' ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_16",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
+          "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%/,.:();!' ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_AURA_14",
+          "file": "fonts/AtkinsonHyperlegibleNext-Bold.otf",
+          "characterRegex": "[-0-9A-Za-zàáâäãèéêëìíîïòóôöõùúûüñçøåÀÁÂÄÃÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÑÇØÅ°ºª%/,.:();!' ]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_WI_30",
+          "file": "fonts/WeatherIcons-Regular.ttf",
+          "characterRegex": "[]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_WI_20",
+          "file": "fonts/WeatherIcons-Regular.ttf",
+          "characterRegex": "[]"
+        }
+      ]
+    }
+  }
+}
