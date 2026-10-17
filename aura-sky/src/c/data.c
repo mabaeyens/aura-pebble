@@ -85,23 +85,24 @@ void data_mock_cycle(int dir) {
   if (s_cb) s_cb();
 }
 
-// Sunrise/sunset re-dated onto `t`'s calendar day (the phone sends today's pair,
-// but the watch may run past midnight on yesterday's).
+// Sunrise and sunset of the day that contains `t`, by whole-day shifts of the pair the
+// phone sent (the day length changes by minutes per day, so a few days of drift is
+// invisible). Pure epoch arithmetic, so it holds for a city in another timezone than
+// the watch: the phone's pair is in absolute time, and nothing here uses local time.
+// On return sr <= t < sr + 24 h.
 static bool sun_times(time_t t, time_t *sr, time_t *ss) {
-  if (g_wx.sunrise == 0 || g_wx.sunset == 0) return false;
-  struct tm nt = *localtime(&t);
-  time_t a = g_wx.sunrise, b = g_wx.sunset;
-  struct tm rt = *localtime(&a); struct tm st = *localtime(&b);
-  struct tm x = nt; x.tm_hour = rt.tm_hour; x.tm_min = rt.tm_min; x.tm_sec = 0;
-  struct tm y = nt; y.tm_hour = st.tm_hour; y.tm_min = st.tm_min; y.tm_sec = 0;
-  *sr = mktime(&x); *ss = mktime(&y);
-  return *ss > *sr;
+  if (g_wx.sunrise == 0 || g_wx.sunset == 0 || g_wx.sunset <= g_wx.sunrise) return false;
+  int64_t d = (int64_t)t - g_wx.sunrise;
+  int64_t k = d >= 0 ? d / 86400 : -((-d + 86399) / 86400);   // floor
+  *sr = (time_t)(g_wx.sunrise + k * 86400);
+  *ss = (time_t)(g_wx.sunset + k * 86400);
+  return true;
 }
 
 bool data_night_at(time_t t) {
   time_t sr, ss;
   if (!sun_times(t, &sr, &ss)) return false;
-  return t < sr || t > ss;
+  return t > ss;                               // sr <= t by construction
 }
 
 SkyPhase data_phase_at(time_t t) {
@@ -112,6 +113,7 @@ SkyPhase data_phase_at(time_t t) {
   if (t >= ss - s_cfg.golden_before * m && t <= ss) return PH_GOLDEN;
   if (t > ss && t <= ss + s_cfg.dusk_after * m) return PH_DUSK;
   if (t >= sr && t < ss) return PH_DAY;
+  if (t >= sr + 86400 - s_cfg.dawn_before * m) return PH_DAWN;   // the next dawn, just before sunrise
   return PH_NIGHT;
 }
 
@@ -127,13 +129,12 @@ SunPos data_sun_pos(time_t t) {
   SunPos p = { false, 500, 1000 };
   time_t sr, ss;
   if (!sun_times(t, &sr, &ss)) return p;
-  if (t >= sr && t <= ss) {
+  if (t <= ss) {
     p.frac_1000 = (int)((int64_t)(t - sr) * 1000 / (ss - sr));
   } else {
     p.night = true;
-    time_t ps, nr;
-    if (t < sr) { ps = ss - 86400; nr = sr; } else { ps = ss; nr = sr + 86400; }
-    p.frac_1000 = (int)((int64_t)(t - ps) * 1000 / (nr - ps));
+    time_t nr = sr + 86400;                    // the night runs from this sunset to the next sunrise
+    p.frac_1000 = (int)((int64_t)(t - ss) * 1000 / (nr - ss));
   }
   p.alt_1000 = sin_pi_1000(p.frac_1000);
   return p;

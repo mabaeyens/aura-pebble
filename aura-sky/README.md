@@ -30,7 +30,7 @@ Open the settings from the Pebble phone app (built with [Clay](https://github.co
 
 ## Known limits
 
-The sky and the hour labels follow the watch's own clock and time zone. For the place you are in, that is exactly right. For a city in another time zone the sun times are matched by their clock hour, so the sky can be out of step with that city's real light.
+The sky, sun and moon follow the picked city's own sunrise and sunset, which the phone sends as absolute times, so a city in another time zone shows its own dawn, day, dusk or night. The hour labels on the hourly page still use the watch's clock and time zone.
 
 ## Build
 

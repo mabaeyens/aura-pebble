@@ -8,7 +8,7 @@ Everything needed to submit Aura Sky Weather as a new **watchapp** on the Pebble
 | --- | --- |
 | Title | Aura Sky Weather |
 | UUID | `6f1c2b3a-5d4e-4a7b-9c10-2a8e7d41b0a1` (must match the built `.pbw`; distinct from Aura Weather, Aura Cityscape Weather and the faces) |
-| Version | 1.0.0 |
+| Version | 1.0.1 |
 | Category | Tools & Utilities (it is a weather app; pick the closest available at submission time) |
 | Platforms | emery (Pebble Time 2) only |
 | Source code | https://github.com/mabaeyens/aura-pebble |
@@ -33,11 +33,21 @@ The last forecast is kept on the watch, so the sky is there the moment you open 
 
 Free and open source. Pebble Time 2 only.
 
-## What is new in 1.0.0
+## What is new in 1.0.1
+
+The sky now follows the light of the city you picked, not the clock on your wrist. Sunrise and sunset are compared in absolute time, so a city in another time zone shows its own dawn, day, dusk or night.
+
+## What was new in 1.0.0
 
 First release. A living sky painted from the real sunrise, sunset and conditions, with hourly and daily pages, worldwide Open-Meteo data, optional AEMET in Spain, and a stored last forecast.
 
 ## Release notes (for the dashboard release field)
+
+Version 1.0.1:
+
+1. The sky, sun and moon now follow the picked city's own sunrise and sunset, wherever the watch is.
+
+Version 1.0.0:
 
 1. First release of Aura Sky Weather for the Pebble Time 2.
 2. The sky follows the real time of day and the current weather, with the sun, the moon at its real phase, clouds, rain and snow.
