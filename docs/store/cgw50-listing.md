@@ -20,6 +20,10 @@ Inspired by the Casio CGW-50 "Cosmo Phase". An independent, non-commercial tribu
 
 Credits: digit rendering adapted from PT2-LCD221 by Kicou (MIT); segment shapes from the 7-Segment font by Jan Bobrowski and DSEG14 by Keshikan, and Weather Icons by Erik Flowers (all SIL OFL 1.1); weather data by Open-Meteo.com (CC BY 4.0).
 
+## Release notes (1.3.0)
+
+New: the date now uses bold LCD letters, and the settings page lets you choose thin or bold strokes separately for the time, the date, the sunrise and sunset countdown and the temperature. Custom colours are picked from the full 64-colour Pebble palette instead of a list of names, and the accent can stay automatic or be picked by hand. Your saved colours carry over. If a colour choice leaves almost no contrast, the digits fall back to black or white.
+
 ## Release notes (1.2.0)
 
 New: Stack can put its date and weather column on the left or the right of the time, and the column now uses the LCD lettering. The Timeline date uses the LCD lettering too. The unlit LCD segments are much fainter, so they no longer fight with the time. The forecast chart is taller and the small hour numbers under it are gone. Weather icons stay readable on every theme. Quiet, Timeline and Stack are re-spaced so the top and bottom margins match.

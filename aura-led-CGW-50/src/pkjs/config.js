@@ -4,26 +4,11 @@ var pkg = require('../../package.json');
 // Values are strings that the C parses as ints (see tuple_int in aura-led-cgw-50.c).
 //  - THEME: 0 automatic (negative after sunset), 1 always day, 2 always night.
 //  - PRESET: 0 custom, 1-12 pre-built themes, 13 follows the weather (table in the C).
-//  - DAY_* / NIGHT_* pick background and digit colours for each theme; indices match
-//    palette() in the C. If a pick leaves too little contrast the C falls back to
-//    black or white digits, so a bad choice can never hide the time.
-//  - ACCENT colours the rules, weekday, daylight bar, weather icon and Halley's comet;
-//    "-1" follows the Aura sky ramp by hour.
-var COLOR_OPTIONS = [
-  { "label": "White", "value": "0" },
-  { "label": "Black", "value": "1" },
-  { "label": "Light grey", "value": "2" },
-  { "label": "Dark grey", "value": "3" },
-  { "label": "Red", "value": "4" },
-  { "label": "Orange", "value": "5" },
-  { "label": "Yellow", "value": "6" },
-  { "label": "Green", "value": "7" },
-  { "label": "Cyan", "value": "8" },
-  { "label": "Blue", "value": "9" },
-  { "label": "Purple", "value": "10" },
-  { "label": "LCD yellow", "value": "11" },
-  { "label": "Amber", "value": "12" }
-];
+//  - DAY_* / NIGHT_* pick background and digit colours for each theme from the full 64-colour
+//    Pebble palette (Clay colour pickers, sent as 0xRRGGBB). If a pick leaves almost no contrast the
+//    C falls back to black or white digits, so a bad choice can never hide the time.
+//  - ACCENT colours the rules, weekday, daylight bar and weather icon; it is only used when
+//    ACCENT_AUTO is off, otherwise the accent follows the Aura sky ramp by hour.
 
 var THEME_OPTIONS = [
   { "label": "Automatic (night after sunset)", "value": "0" },
@@ -48,8 +33,6 @@ var PRESET_OPTIONS = [
   { "label": "Follow the weather", "value": "13" }
 ];
 
-var ACCENT_OPTIONS = [{ "label": "Automatic (sky colour by hour)", "value": "-1" }].concat(COLOR_OPTIONS);
-
 // The weather location is a worldwide city search (SEARCH), not a fixed list:
 // the typeahead in index.js queries the keyless Open-Meteo geocoder and fills
 // CITY / LAT / LON on tap. USE_GPS off means "use the searched city / manual
@@ -72,31 +55,32 @@ module.exports = [
       { "type": "text", "defaultValue": "Night turns the face negative from sunset to sunrise at the weather location." },
       { "type": "select", "messageKey": "THEME", "label": "Mode", "defaultValue": "0", "options": THEME_OPTIONS },
       { "type": "select", "messageKey": "PRESET", "label": "Colour theme", "defaultValue": "0", "options": PRESET_OPTIONS },
-      { "type": "text", "defaultValue": "Every theme has a day and a night look. Follow the weather picks the mood from the current conditions. Anything other than Custom replaces the day and night colours below; an accent you pick still wins." }
+      { "type": "text", "defaultValue": "Every theme has a day and a night look. Follow the weather picks the mood from the current conditions. Anything other than Custom replaces the day and night colours below; an accent you pick (automatic off) still wins." }
     ]
   },
   {
     "type": "section",
     "items": [
       { "type": "heading", "defaultValue": "Day colours" },
-      { "type": "select", "messageKey": "DAY_BG", "label": "Background", "defaultValue": "0", "options": COLOR_OPTIONS },
-      { "type": "select", "messageKey": "DAY_FG", "label": "Digits and lines", "defaultValue": "1", "options": COLOR_OPTIONS }
+      { "type": "color", "messageKey": "DAY_BG", "label": "Background", "defaultValue": "0xFFFFFF", "sunlight": true, "layout": "COLOR" },
+      { "type": "color", "messageKey": "DAY_FG", "label": "Digits and lines", "defaultValue": "0x000000", "sunlight": true, "layout": "COLOR" }
     ]
   },
   {
     "type": "section",
     "items": [
       { "type": "heading", "defaultValue": "Night colours" },
-      { "type": "select", "messageKey": "NIGHT_BG", "label": "Background", "defaultValue": "1", "options": COLOR_OPTIONS },
-      { "type": "select", "messageKey": "NIGHT_FG", "label": "Digits and lines", "defaultValue": "12", "options": COLOR_OPTIONS }
+      { "type": "color", "messageKey": "NIGHT_BG", "label": "Background", "defaultValue": "0x000000", "sunlight": true, "layout": "COLOR" },
+      { "type": "color", "messageKey": "NIGHT_FG", "label": "Digits and lines", "defaultValue": "0xFFAA00", "sunlight": true, "layout": "COLOR" }
     ]
   },
   {
     "type": "section",
     "items": [
       { "type": "heading", "defaultValue": "Accent" },
-      { "type": "text", "defaultValue": "Rules, weekday, daylight bar, weather icon and Halley's comet. Digits never use it." },
-      { "type": "select", "messageKey": "ACCENT", "label": "Colour", "defaultValue": "-1", "options": ACCENT_OPTIONS }
+      { "type": "text", "defaultValue": "Weekday, daylight bar and weather icon. Digits never use it. Turn automatic off to pick any of the 64 colours." },
+      { "type": "toggle", "messageKey": "ACCENT_AUTO", "label": "Automatic (sky colour by hour)", "defaultValue": true },
+      { "type": "color", "messageKey": "ACCENT", "label": "Colour", "defaultValue": "0xFF5500", "sunlight": true, "layout": "COLOR" }
     ]
   },
   {
@@ -105,6 +89,10 @@ module.exports = [
       { "type": "heading", "defaultValue": "Display" },
       { "type": "select", "messageKey": "DATE_STYLE", "label": "Date lettering (Quiet)", "defaultValue": "4",
         "options": [{ "label": "14-segment LCD", "value": "4" }, { "label": "Dot matrix 5 x 7", "value": "1" }, { "label": "Bold dots", "value": "2" }, { "label": "Dots + LCD day number", "value": "3" }, { "label": "Gothic", "value": "0" }] },
+      { "type": "toggle", "messageKey": "TIME_BOLD", "label": "Bold time digits", "defaultValue": false },
+      { "type": "toggle", "messageKey": "DATE_BOLD", "label": "Bold date letters", "defaultValue": true },
+      { "type": "toggle", "messageKey": "SUN_BOLD", "label": "Bold sunrise / sunset countdown", "defaultValue": false },
+      { "type": "toggle", "messageKey": "WX_BOLD", "label": "Bold temperature", "defaultValue": false },
       { "type": "toggle", "messageKey": "TIME24", "label": "24 hour clock", "defaultValue": true },
       { "type": "toggle", "messageKey": "DATE_MDY", "label": "Month before day (off = day-month)", "defaultValue": true },
       { "type": "toggle", "messageKey": "GHOSTS", "label": "Show unlit LCD segments", "defaultValue": true }

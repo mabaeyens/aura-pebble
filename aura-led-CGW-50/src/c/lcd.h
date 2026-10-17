@@ -25,6 +25,8 @@ static GBitmap *s_fb;
 static bool s_ghosts_on = true;   // draw the dotted unlit segments
 static GColor s_ink, s_ghost;
 static uint8_t s_aa[3];            // faint, medium, full ink
+#define SEG14_BOLD_BIAS 800
+static int s_aa_bias;               // lowers the anti-alias thresholds: edge pixels turn into solid ink
 static int s_ghost_density = 3;    // out of 16
 static const uint8_t BAYER4[4][4] = {{0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}};
 
@@ -117,7 +119,7 @@ static void lcd_fill_poly_aa(int x, int y, int w, int h, const int16_t *pts, int
     if (yy < 0 || yy >= PBL_DISPLAY_HEIGHT) continue;
     GBitmapDataRowInfo row = gbitmap_get_data_row_info(s_fb, yy);
     for (int c = 0; c < cols; c++) {
-      int level = cov[c] >= 3000 ? 2 : cov[c] >= 1800 ? 1 : cov[c] >= 600 ? 0 : -1;
+      int level = cov[c] >= 3000 - s_aa_bias ? 2 : cov[c] >= 1800 - s_aa_bias ? 1 : cov[c] >= 600 - s_aa_bias / 2 ? 0 : -1;
       int xx = x + c;
       if (level < 0 || xx < row.min_x || xx > row.max_x) continue;
       uint8_t cur = row.data[xx];
@@ -127,6 +129,9 @@ static void lcd_fill_poly_aa(int x, int y, int w, int h, const int16_t *pts, int
   }
 }
 
+static int s_bold7;   // 1 = bold strokes on the 7-segment digits drawn next, 0 = thin
+static int s_bold_time, s_bold_sun, s_bold_wx;   // per-section settings
+
 static void lcd_digit(int x, int y, int w, int h, int value) {
   uint8_t on = (value >= 0 && value <= LCD_DIGIT_MINUS) ? DIGIT_SEGS[value] : 0;
   for (int pass = 0; pass <= 1; pass++) {
@@ -134,8 +139,13 @@ static void lcd_digit(int x, int y, int w, int h, int value) {
     uint8_t mask = pass ? on : (uint8_t)(~on & 0x7F);
     for (int i = 0; i < 7; i++) {
       if (!(mask & (1 << i))) continue;
-      if (pass) lcd_fill_poly_aa(x, y, w, h, SEG_POLYS[i], SEG_POLY_LEN[i], LCD_SLANT);
-      else lcd_fill_poly(x, y, w, h, SEG_POLYS[i], SEG_POLY_LEN[i], LCD_SLANT);
+      if (pass) {
+        s_aa_bias = s_bold7 ? SEG14_BOLD_BIAS : 0;
+        for (int d = 0; d <= s_bold7; d++) lcd_fill_poly_aa(x + d, y, w - s_bold7, h, SEG_POLYS[i], SEG_POLY_LEN[i], LCD_SLANT);
+        s_aa_bias = 0;
+      } else {
+        for (int d = 0; d <= s_bold7; d++) lcd_fill_poly(x + d, y, w - s_bold7, h, SEG_POLYS[i], SEG_POLY_LEN[i], LCD_SLANT);
+      }
     }
   }
 }
@@ -178,13 +188,21 @@ static void lcd_centered(GContext *ctx, const char *s, int w, int h, int gap, GR
 
 // 14-segment letters and digits (DSEG14 outlines, see seg14.h), same renderer as the time digits.
 // The width of a glyph follows its height (SEG14_ASPECT); `gap` separates characters.
+static int s_seg14_bold = 1;   // 1 = bold strokes, 0 = the original thin ones
 static int lcd14_w(int h) { return h * SEG14_ASPECT / 1000; }
 
 static void lcd_glyph14(int x, int y, int w, int h, uint32_t mask, bool lit) {
   for (int i = 0; i < SEG14_N; i++) {
     if (!(mask & (1U << i))) continue;
-    if (lit) lcd_fill_poly_aa(x, y, w, h, &SEG14_POLYS[i][0][0], SEG14_LEN[i], LCD_SLANT);
-    else lcd_fill_poly(x, y, w, h, &SEG14_POLYS[i][0][0], SEG14_LEN[i], LCD_SLANT);
+    // Bolder strokes at the same size: the glyph is drawn one pixel narrower, twice, one pixel apart,
+    // which widens every vertical stroke by 1 px; the lit edges also round up to solid ink.
+    if (lit) {
+      s_aa_bias = s_seg14_bold ? SEG14_BOLD_BIAS : 0;
+      for (int d = 0; d <= s_seg14_bold; d++) lcd_fill_poly_aa(x + d, y, w - s_seg14_bold, h, &SEG14_POLYS[i][0][0], SEG14_LEN[i], LCD_SLANT);
+      s_aa_bias = 0;
+    } else {
+      for (int d = 0; d <= s_seg14_bold; d++) lcd_fill_poly(x + d, y, w - s_seg14_bold, h, &SEG14_POLYS[i][0][0], SEG14_LEN[i], LCD_SLANT);
+    }
   }
 }
 

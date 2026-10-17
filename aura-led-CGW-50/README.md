@@ -8,7 +8,7 @@ Three layouts share the same design and are picked in the settings page. Quiet i
 
 ## Settings
 
-The settings page (Clay) sets the layout, the theme (automatic, always day, always night), the background and digit colours for day and night, the accent colour (or the automatic sky colour by hour), the date lettering (14-segment LCD, dot matrix, bold dots or Gothic), 24 hour or 12 hour time, day-month or month-day, the unlit LCD segments, units, and the weather location (a worldwide city search, manual coordinates or the phone's GPS). If a colour choice leaves too little contrast, the digits fall back to black or white so the time always stays readable.
+The settings page (Clay) sets the layout, the theme (automatic, always day, always night), the background and digit colours for day and night and the accent colour, each picked from the full 64-colour Pebble palette (or the automatic sky colour by hour for the accent), the date lettering (14-segment LCD, dot matrix, bold dots or Gothic), thin or bold strokes chosen separately for the time, the date, the sunrise and sunset countdown and the temperature, 24 hour or 12 hour time, day-month or month-day, the unlit LCD segments, units, and the weather location (a worldwide city search, manual coordinates or the phone's GPS). If a colour choice leaves almost no contrast, the digits fall back to black or white so the time always stays readable.
 
 ## Data
 

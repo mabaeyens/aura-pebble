@@ -41,6 +41,16 @@ function clayStyle() {
     document.body.insertBefore(hd, document.body.firstChild);
   });
 
+  // The accent colour picker only matters while "Automatic" is off.
+  clayConfig.on(clayConfig.EVENTS.AFTER_BUILD, function () {
+    var auto = clayConfig.getItemByMessageKey('ACCENT_AUTO');
+    var pick = clayConfig.getItemByMessageKey('ACCENT');
+    if (!auto || !pick) { return; }
+    function sync() { if (auto.get()) { pick.hide(); } else { pick.show(); } }
+    auto.on('change', sync);
+    sync();
+  });
+
   // Worldwide city typeahead under the "Search a city" box. A declarative Clay
   // config cannot do this, so it is wired here (this whole function is injected
   // into the config page as a string, so it must stay self-contained: no
@@ -119,6 +129,27 @@ function clayStyle() {
     });
   });
 }
+
+// Settings saved before 1.3 hold palette indices as strings ("0".."12", ACCENT "-1" for automatic).
+// The colour pickers want 0xRRGGBB numbers, so convert them once, in place.
+(function migrateColours() {
+  var OLD = [0xFFFFFF, 0x000000, 0xAAAAAA, 0x555555, 0xFF0000, 0xFF5500, 0xFFFF00, 0x00FF00,
+             0x00FFFF, 0x0000FF, 0xAA00FF, 0xFFFFAA, 0xFFAA00];
+  try {
+    var s = JSON.parse(localStorage.getItem('clay-settings'));
+    if (!s) { return; }
+    var changed = false;
+    ['DAY_BG', 'DAY_FG', 'NIGHT_BG', 'NIGHT_FG', 'ACCENT'].forEach(function (k) {
+      if (typeof s[k] !== 'string') { return; }
+      var i = parseInt(s[k], 10);
+      if (k === 'ACCENT') { s.ACCENT_AUTO = i < 0; }
+      if (!isNaN(i) && i >= 0 && i < OLD.length) { s[k] = OLD[i]; }
+      else { delete s[k]; }
+      changed = true;
+    });
+    if (changed) { localStorage.setItem('clay-settings', JSON.stringify(s)); }
+  } catch (e) {}
+})();
 
 var clay = new Clay(clayConfig, clayStyle);
 

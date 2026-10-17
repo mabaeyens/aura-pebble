@@ -30,6 +30,12 @@
 #define PKEY_DATESTYLE 22
 #define PKEY_PRESET 23
 #define PKEY_STACKSIDE 24
+#define PKEY_ACCENT_AUTO 25
+#define PKEY_SEG14_BOLD 27
+#define PKEY_BOLD_TIME 28
+#define PKEY_BOLD_SUN 29
+#define PKEY_BOLD_WX 30
+#define PKEY_COLOR_RGB 26   // set once DAY_*, NIGHT_* and ACCENT hold 0xRRGGBB instead of a palette index
 
 // Unlit segments: 17..49% all round to the same one-step tint on the 64-colour palette (below 17% it
 // vanishes), so the faintness comes from covering only GHOST_DENSITY/16 of the pixels, as a dither.
@@ -59,7 +65,10 @@ typedef enum { THEME_AUTO, THEME_DAY, THEME_NIGHT } Theme;
 // Settings (defaults match src/pkjs/config.js)
 static int s_theme = THEME_AUTO;
 static int s_preset = 0;   // 0 = custom colours below, else a PRESETS row
-static int s_day_bg = 0, s_day_fg = 1, s_night_bg = 1, s_night_fg = 12, s_accent_pref = -1;
+// Custom colours are 0xRRGGBB from the settings page's 64-colour picker.
+static int s_day_bg = 0xFFFFFF, s_day_fg = 0x000000, s_night_bg = 0x000000, s_night_fg = 0xFFAA00;
+static int s_accent_rgb = 0xFF5500;
+static bool s_accent_auto = true;
 static bool s_time24 = true, s_mdy = true, s_ghosts = true;
 
 // Weather and sun times from the phone; sun times are minutes since local midnight
@@ -98,6 +107,8 @@ static GColor palette(int i) {
     default: return GColorChromeYellow;
   }
 }
+
+static int rgb_of(GColor c) { return (c.r * 85 << 16) | (c.g * 85 << 8) | c.b * 85; }
 
 static int luma(GColor c) { return c.r * 299 + c.g * 587 + c.b * 114; }   // 0..3000
 
@@ -164,12 +175,12 @@ static void apply_theme(struct tm *t) {
     s_bg = (GColor){ .argb = s_night ? pr->nbg : pr->dbg };
     s_fg = (GColor){ .argb = s_night ? pr->nfg : pr->dfg };
   } else {
-    s_bg = palette(s_night ? s_night_bg : s_day_bg);
-    s_fg = palette(s_night ? s_night_fg : s_day_fg);
+    s_bg = GColorFromHEX(s_night ? s_night_bg : s_day_bg);
+    s_fg = GColorFromHEX(s_night ? s_night_fg : s_day_fg);
   }
   // Never let a poor pick make the time unreadable: keep a minimum luminance gap
-  if (abs(luma(s_fg) - luma(s_bg)) < 1500) s_fg = luma(s_bg) > 1500 ? GColorBlack : GColorWhite;
-  if (s_accent_pref >= 0) s_accent = palette(s_accent_pref);
+  if (abs(luma(s_fg) - luma(s_bg)) < 600) s_fg = luma(s_bg) > 1500 ? GColorBlack : GColorWhite;
+  if (!s_accent_auto) s_accent = GColorFromHEX(s_accent_rgb);
   else if (pr) s_accent = (GColor){ .argb = s_night ? pr->nacc : pr->dacc };
   else s_accent = s_night ? GColorOrange : sky_accent(t->tm_hour);
   if (abs(luma(s_accent) - luma(s_bg)) < 600) s_accent = s_fg;
@@ -278,12 +289,15 @@ static void draw_date(GContext *ctx, struct tm *tm, int x, int y) {
     if (s_mdy) {
       nx = draw_dots(ctx, " ", nx, y + 7, s_fg, dot);
       nx = draw_dots(ctx, mon, nx, y + 7, s_fg, dot) + 9;
+      s_bold7 = s_seg14_bold;
       lcd_str(ctx, num, nx, y + 7, 11, 21, 3);
     } else {
       nx += 9;
+      s_bold7 = s_seg14_bold;
       lcd_str(ctx, num, nx, y + 7, 11, 21, 3);
       draw_dots(ctx, mon, nx + lcd_width(num, 11, 21, 3) + 9, y + 7, s_fg, dot);
     }
+    s_bold7 = 0;
     s_ghosts_on = s_ghosts;
     return;
   }
@@ -369,7 +383,9 @@ static void draw_daylight(GContext *ctx, int now_min) {
   graphics_context_set_text_color(ctx, mix(s_fg, s_bg, 62));
   draw_text(ctx, day ? "SUNSET IN" : "SUNRISE IN", fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD), GRect(G.mx - 1, y0 - 4, 90, 16), GTextAlignmentLeft);
   set_aa(s_fg);
+  s_bold7 = s_bold_sun;
   lcd_str(ctx, cd, G.mx, y0 + 14, 12, 18, 3);
+  s_bold7 = 0;
   s_ghosts_on = s_ghosts;
   int ax = W / 2 + 8;
   draw_arc(ctx, ax, W - G.mx - ax, y0 + 31, 7, now_min);
@@ -442,7 +458,9 @@ static void paint_timeline(GContext *ctx, struct tm *tm, int now_min) {
   s_ghosts_on = s_ghosts;
   if (s_time24) snprintf(buf, sizeof(buf), "%02d:%02d", tm->tm_hour, tm->tm_min);
   else snprintf(buf, sizeof(buf), "%d:%02d", tm->tm_hour % 12 ? tm->tm_hour % 12 : 12, tm->tm_min);
+  s_bold7 = s_bold_time;
   lcd_centered(ctx, buf, G.time_w, G.time_h, 5, GRect(0, G.time_y, W, G.time_h));
+  s_bold7 = 0;
   draw_daylight(ctx, now_min);
 
   // forecast, full width
@@ -489,8 +507,10 @@ static void paint_stack(GContext *ctx, struct tm *tm, time_t now, int now_min) {
   else snprintf(hh, sizeof(hh), "%d", tm->tm_hour % 12 ? tm->tm_hour % 12 : 12);
   snprintf(mm, sizeof(mm), "%02d", tm->tm_min);
   s_ghosts_on = s_ghosts;
+  s_bold7 = s_bold_time;
   lcd_str(ctx, hh, x0 + lcd_width("88", w, h, gap) - lcd_width(hh, w, h, gap), 5, w, h, gap);
   lcd_str(ctx, mm, x0, 105, w, h, gap);
+  s_bold7 = 0;
 
   char d[4], mo[4], dd[4];
   for (int i = 0; i < 3; i++) d[i] = DAYS[tm->tm_wday][i] & ~0x20;
@@ -510,7 +530,9 @@ static void paint_stack(GContext *ctx, struct tm *tm, time_t now, int now_min) {
     s_ink = s_fg;
     int tw = lcd_width(buf, 11, 21, 3);
     int tx = cx - (tw + 9) / 2;
+    s_bold7 = s_bold_wx;
     lcd_str(ctx, buf, tx, 159, 11, 21, 3);
+    s_bold7 = 0;
     graphics_context_set_stroke_color(ctx, s_fg);
     graphics_context_set_stroke_width(ctx, 2);
     graphics_draw_circle(ctx, GPoint(tx + tw + 5, 162), 3);
@@ -558,7 +580,9 @@ static void canvas_update(Layer *layer, GContext *ctx) {
 
   if (s_time24) snprintf(buf, sizeof(buf), "%02d:%02d", tm->tm_hour, tm->tm_min);
   else snprintf(buf, sizeof(buf), "%d:%02d", tm->tm_hour % 12 ? tm->tm_hour % 12 : 12, tm->tm_min);
+  s_bold7 = s_bold_time;
   lcd_centered(ctx, buf, G.time_w, G.time_h, 5, GRect(0, G.time_y, W, G.time_h));
+  s_bold7 = 0;
 
 
   // Bottom-left: weather icon, current temperature large, low / high small
@@ -573,7 +597,9 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   int tw = strlen(buf) > 2 ? 12 : 15;
   s_ghosts_on = s_ghosts;
   int tx = mx + 38;
+  s_bold7 = s_bold_wx;
   lcd_str(ctx, buf, tx, by + 4, tw, 34, 4);
+  s_bold7 = 0;
   graphics_context_set_stroke_color(ctx, s_fg);
   graphics_context_set_stroke_width(ctx, 2);
   graphics_draw_circle(ctx, GPoint(tx + lcd_width(buf, tw, 34, 4) + 5, by + 8), 3);
@@ -620,9 +646,14 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   GET_INT(DAY_FG, s_day_fg, PKEY_DAY_FG)
   GET_INT(NIGHT_BG, s_night_bg, PKEY_NIGHT_BG)
   GET_INT(NIGHT_FG, s_night_fg, PKEY_NIGHT_FG)
-  GET_INT(ACCENT, s_accent_pref, PKEY_ACCENT)
+  GET_INT(ACCENT, s_accent_rgb, PKEY_ACCENT)
   GET_BOOL(TIME24, s_time24, PKEY_TIME24)
   GET_BOOL(DATE_MDY, s_mdy, PKEY_MDY)
+  GET_BOOL(ACCENT_AUTO, s_accent_auto, PKEY_ACCENT_AUTO)
+  GET_BOOL(DATE_BOLD, s_seg14_bold, PKEY_SEG14_BOLD)
+  GET_BOOL(TIME_BOLD, s_bold_time, PKEY_BOLD_TIME)
+  GET_BOOL(SUN_BOLD, s_bold_sun, PKEY_BOLD_SUN)
+  GET_BOOL(WX_BOLD, s_bold_wx, PKEY_BOLD_WX)
   GET_BOOL(GHOSTS, s_ghosts, PKEY_GHOSTS)
   GET_INT(WX_TEMP, s_wx_temp, PKEY_WX_TEMP)
   GET_INT(WX_CODE, s_wx_code, PKEY_WX_CODE)
@@ -649,13 +680,35 @@ static void load_settings(void) {
 #define LOAD_BOOL(var, pkey) if (persist_exists(pkey)) var = persist_read_bool(pkey);
   LOAD_INT(s_theme, PKEY_THEME)
   LOAD_INT(s_preset, PKEY_PRESET)
-  LOAD_INT(s_day_bg, PKEY_DAY_BG)
-  LOAD_INT(s_day_fg, PKEY_DAY_FG)
-  LOAD_INT(s_night_bg, PKEY_NIGHT_BG)
-  LOAD_INT(s_night_fg, PKEY_NIGHT_FG)
-  LOAD_INT(s_accent_pref, PKEY_ACCENT)
+  if (persist_exists(PKEY_COLOR_RGB)) {
+    LOAD_INT(s_day_bg, PKEY_DAY_BG)
+    LOAD_INT(s_day_fg, PKEY_DAY_FG)
+    LOAD_INT(s_night_bg, PKEY_NIGHT_BG)
+    LOAD_INT(s_night_fg, PKEY_NIGHT_FG)
+    LOAD_INT(s_accent_rgb, PKEY_ACCENT)
+    LOAD_BOOL(s_accent_auto, PKEY_ACCENT_AUTO)
+  } else {   // settings saved before 1.3 hold palette indices (and -1 for the automatic accent)
+#define MIGRATE(var, pkey) if (persist_exists(pkey)) { var = rgb_of(palette(persist_read_int(pkey))); persist_write_int(pkey, var); }
+    MIGRATE(s_day_bg, PKEY_DAY_BG)
+    MIGRATE(s_day_fg, PKEY_DAY_FG)
+    MIGRATE(s_night_bg, PKEY_NIGHT_BG)
+    MIGRATE(s_night_fg, PKEY_NIGHT_FG)
+#undef MIGRATE
+    if (persist_exists(PKEY_ACCENT)) {
+      int old = persist_read_int(PKEY_ACCENT);
+      s_accent_auto = old < 0;
+      if (old >= 0) s_accent_rgb = rgb_of(palette(old));
+      persist_write_int(PKEY_ACCENT, s_accent_rgb);
+      persist_write_bool(PKEY_ACCENT_AUTO, s_accent_auto);
+    }
+    persist_write_bool(PKEY_COLOR_RGB, true);
+  }
   LOAD_BOOL(s_time24, PKEY_TIME24)
   LOAD_BOOL(s_mdy, PKEY_MDY)
+  LOAD_BOOL(s_seg14_bold, PKEY_SEG14_BOLD)
+  LOAD_BOOL(s_bold_time, PKEY_BOLD_TIME)
+  LOAD_BOOL(s_bold_sun, PKEY_BOLD_SUN)
+  LOAD_BOOL(s_bold_wx, PKEY_BOLD_WX)
   LOAD_BOOL(s_ghosts, PKEY_GHOSTS)
   LOAD_INT(s_wx_temp, PKEY_WX_TEMP)
   LOAD_INT(s_wx_code, PKEY_WX_CODE)
