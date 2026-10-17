@@ -108,6 +108,14 @@ module.exports = [
   {
     "type": "section",
     "items": [
+      { "type": "heading", "defaultValue": "Credits" },
+      { "type": "text", "defaultValue": "Inspired by the Casio CGW-50 Cosmo Phase. An independent, non-commercial tribute, not affiliated with or endorsed by Casio." },
+      { "type": "text", "defaultValue": "Digit rendering adapted from PT2-LCD221 by Kicou (MIT). Segment shapes from the 7-Segment font by Jan Bobrowski and DSEG14 by Keshikan (SIL OFL 1.1). Weather icons by Erik Flowers (SIL OFL 1.1). Weather data by Open-Meteo.com (CC BY 4.0)." }
+    ]
+  },
+  {
+    "type": "section",
+    "items": [
       { "type": "text", "defaultValue": "Aura LCD v" + pkg.version,
         "attributes": { "style": "text-align:center;color:#8aa0b6;font-size:12px;" } }
     ]

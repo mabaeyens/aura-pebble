@@ -20,6 +20,8 @@ Four layouts, from the calm default to a dense one: Quiet, Panel, Timeline and S
 
 Free and open source. Inspired by the Casio CGW-50 Cosmo Phase; an independent, non-commercial tribute, not affiliated with or endorsed by Casio.
 
+Digit rendering is adapted from PT2-LCD221 by Kicou (MIT). Segment shapes come from the 7-Segment font by Jan Bobrowski and DSEG14 by Keshikan, and weather icons from Weather Icons by Erik Flowers (all SIL OFL 1.1). Weather data by Open-Meteo.com (CC BY 4.0).
+
 ## Store description (short, for the 1-2 line slot)
 
 Sharp slanted LCD digits, a sun-path arch with a sunset countdown, weather and a 12 hour forecast. Four layouts, free and open source.

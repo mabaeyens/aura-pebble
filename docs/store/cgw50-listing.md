@@ -18,6 +18,8 @@ Four layouts (Quiet, Panel, Timeline and Stack), day and night colours, accent, 
 
 Inspired by the Casio CGW-50 "Cosmo Phase". An independent, non-commercial tribute, not affiliated with or endorsed by Casio. Free and open source.
 
+Credits: digit rendering adapted from PT2-LCD221 by Kicou (MIT); segment shapes from the 7-Segment font by Jan Bobrowski and DSEG14 by Keshikan, and Weather Icons by Erik Flowers (all SIL OFL 1.1); weather data by Open-Meteo.com (CC BY 4.0).
+
 ## Release notes (1.0.0)
 
 First release.
