@@ -20,6 +20,10 @@ Inspired by the Casio CGW-50 "Cosmo Phase". An independent, non-commercial tribu
 
 Credits: digit rendering adapted from PT2-LCD221 by Kicou (MIT); segment shapes from the 7-Segment font by Jan Bobrowski and DSEG14 by Keshikan, and Weather Icons by Erik Flowers (all SIL OFL 1.1); weather data by Open-Meteo.com (CC BY 4.0).
 
+## Release notes (1.4.0)
+
+The face itself is unchanged from 1.3. This release replaces the store screenshots, which showed every theme in the same grey on black by mistake. They now show the real colours: black on white by day, amber and mint at night, and the pink and grey themes.
+
 ## Release notes (1.3.0)
 
 New: the date now uses bold LCD letters, and the settings page lets you choose thin or bold strokes separately for the time, the date, the sunrise and sunset countdown and the temperature. Custom colours are picked from the full 64-colour Pebble palette instead of a list of names, and the accent can stay automatic or be picked by hand. Your saved colours carry over. If a colour choice leaves almost no contrast, the digits fall back to black or white.
