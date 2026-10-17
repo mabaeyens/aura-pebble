@@ -60,8 +60,7 @@ module.exports = [
     "items": [
       { "type": "heading", "defaultValue": "Layout" },
       { "type": "select", "messageKey": "LAYOUT", "label": "Style", "defaultValue": "0",
-        "options": [{ "label": "Quiet (plain)", "value": "0" }, { "label": "Panel (LCD pane in a dark bezel)", "value": "1" },
-          { "label": "Timeline (sun strip over forecast)", "value": "2" }, { "label": "Stack (hours over minutes)", "value": "3" }] }
+        "options": [{ "label": "Quiet (plain)", "value": "0" }, { "label": "Timeline (sun strip over forecast)", "value": "2" }, { "label": "Stack (hours over minutes)", "value": "3" }] }
     ]
   },
   {
@@ -102,7 +101,7 @@ module.exports = [
     "type": "section",
     "items": [
       { "type": "heading", "defaultValue": "Display" },
-      { "type": "select", "messageKey": "DATE_STYLE", "label": "Date lettering (Quiet and Panel)", "defaultValue": "4",
+      { "type": "select", "messageKey": "DATE_STYLE", "label": "Date lettering (Quiet)", "defaultValue": "4",
         "options": [{ "label": "14-segment LCD", "value": "4" }, { "label": "Dot matrix 5 x 7", "value": "1" }, { "label": "Bold dots", "value": "2" }, { "label": "Dots + LCD day number", "value": "3" }, { "label": "Gothic", "value": "0" }] },
       { "type": "toggle", "messageKey": "TIME24", "label": "24 hour clock", "defaultValue": true },
       { "type": "toggle", "messageKey": "DATE_MDY", "label": "Month before day (off = day-month)", "defaultValue": true },

@@ -34,12 +34,12 @@
 #define FC_SHOW 12
 
 
-// Two layouts share one design: LAYOUT_QUIET is the plain face; LAYOUT_PANEL puts everything on
-// a pale LCD pane inside a dark bezel, so the geometry is a little tighter.
+// Layout ids are stored on the phone and the watch, so they keep their numbers: 0 quiet, 2 timeline,
+// 3 stack. Id 1 was the Panel layout, now retired; a stored 1 is treated as quiet.
 typedef struct { int date_y, strip_base, time_y, time_w, time_h, hair_y, bot_y, mx, step, labels; } Geo;
 static const Geo GEO[4] = {
   { -1,  31,  71, 34, 82, 154, 158,  8, 7, 1 },   // quiet
-  {  4,  35,  74, 30, 72, 150, 154, 14, 6, 1 },   // panel
+  { -1,  31,  71, 34, 82, 154, 158,  8, 7, 1 },   // 1: retired, never selected
   { -2, 122,  32, 35, 86, 0,   156,  8, 0, 1 },   // timeline
   {  0, 224,   6, 60, 92, 0,     0,  8, 0, 0 },   // stack
 };
@@ -173,7 +173,7 @@ static void apply_theme(struct tm *t) {
   s_ink = s_fg;
   s_ghost = mix(s_fg, s_bg, 12);
   s_ghost_density = 16;
-  s_body = s_layout == 1 ? (s_night ? GColorDarkGray : GColorOxfordBlue) : s_bg;
+  s_body = s_bg;
   s_aa[0] = mix(s_fg, s_bg, 30).argb;
   s_aa[1] = mix(s_fg, s_bg, 62).argb;
   s_aa[2] = s_fg.argb;
@@ -268,7 +268,7 @@ static void draw_date(GContext *ctx, struct tm *tm, int x, int y) {
     return;
   }
   if (seg14) {   // 14-segment LCD letters, sharp like the time
-    const int h = s_layout == 1 ? 21 : 23, gap = 2;
+    const int h = 23, gap = 2;
     s_ghosts_on = s_ghosts;
     set_aa(s_accent);
     int nx = lcd_str14(ctx, day, x, y + 6, h, gap);
@@ -514,10 +514,6 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   graphics_context_set_antialiased(ctx, false);
   graphics_context_set_fill_color(ctx, s_body);
   graphics_fill_rect(ctx, GRect(0, 0, W, H), 0, GCornerNone);
-  if (s_layout) {
-    graphics_context_set_fill_color(ctx, s_bg);
-    graphics_fill_rect(ctx, GRect(5, 5, W - 10, H - 10), 10, GCornersAll);
-  }
   s_ghosts_on = s_ghosts;
   if (s_layout == 2) { paint_timeline(ctx, tm, now_min); return; }
   if (s_layout == 3) { paint_stack(ctx, tm, now, now_min); return; }
@@ -602,6 +598,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   GET_INT(SUNSET, s_sunset, PKEY_SUNSET)
   GET_BOOL(UNITS, s_fahr, PKEY_FC + 3)
   GET_INT(LAYOUT, s_layout, PKEY_LAYOUT)
+  if (s_layout == 1) s_layout = 0;
   GET_INT(DATE_STYLE, s_date_style, PKEY_DATESTYLE)
   GET_INT(FC_H, s_fc_hour, PKEY_FC + 1)
   if ((tp = dict_find(iter, MESSAGE_KEY_FC_T)) && tp->length >= FC_N) { memcpy(s_fc_t, tp->value->data, FC_N); persist_write_data(PKEY_FC, s_fc_t, FC_N); }
@@ -636,7 +633,7 @@ static void load_settings(void) {
   LOAD_BOOL(s_fahr, PKEY_FC + 3)
   LOAD_INT(s_layout, PKEY_LAYOUT)
   LOAD_INT(s_date_style, PKEY_DATESTYLE)
-  if (s_layout < 0 || s_layout > 3) s_layout = 0;
+  if (s_layout < 0 || s_layout > 3 || s_layout == 1) s_layout = 0;
   if (persist_exists(PKEY_FC)) persist_read_data(PKEY_FC, s_fc_t, FC_N);
   if (persist_exists(PKEY_FC + 2)) persist_read_data(PKEY_FC + 2, s_fc_p, FC_N);
 #undef LOAD_INT

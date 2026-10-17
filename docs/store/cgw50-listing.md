@@ -14,7 +14,7 @@ A calm LCD watchface for the Pebble Time 2: sharp 7-segment time, a sun path wit
 
 A watchface that keeps the look of a classic Casio LCD and reorganises it for reading at a glance. The time is drawn in sharp slanted 7-segment digits and the date in 14-segment LCD letters. Under the date, a small LCD arch shows the sun's path with the time left until sunset (or sunrise at night). The bottom shows the current temperature with the day's low and high, and the next 12 hours of temperature and rain chance. After sunset the face turns negative with amber digits.
 
-Four layouts (Quiet, Panel, Timeline and Stack), day and night colours, accent, date lettering, 24 hour or 12 hour time and units are all set in the settings page. Weather, forecast and sun times come from Open-Meteo, with a worldwide city search or the phone's GPS. No account or API key.
+Three layouts (Quiet, Timeline and Stack), 13 colour themes with a day and a night look (including one that follows the weather), accent, date lettering, 24 hour or 12 hour time and units are all set in the settings page. Weather, forecast and sun times come from Open-Meteo, with a worldwide city search or the phone's GPS. No account or API key.
 
 Inspired by the Casio CGW-50 "Cosmo Phase". An independent, non-commercial tribute, not affiliated with or endorsed by Casio. Free and open source.
 
@@ -26,11 +26,11 @@ First release.
 
 ## Screenshots (emery, 200 x 228)
 
-- `cgw50-quiet-day.png`
-- `cgw50-quiet-night.png`
-- `cgw50-panel-day.png`
-- `cgw50-timeline-day.png`
-- `cgw50-stack-day.png`
+- `cgw50-sun.png` (High contrast, direct sunlight)
+- `cgw50-night.png` (Sand and amber, dark night)
+- `cgw50-indoor.png` (Classic LCD, low light indoors)
+- `cgw50-weather.png` (Follow the weather, Timeline)
+- `cgw50-stack.png` (Mood: sunset, Stack)
 
 ## Menu icon
 
