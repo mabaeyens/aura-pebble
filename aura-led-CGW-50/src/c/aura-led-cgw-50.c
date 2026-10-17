@@ -297,7 +297,7 @@ static void draw_daylight(GContext *ctx, int now_min) {
   snprintf(cd, sizeof(cd), "%d:%02d", mins / 60, mins % 60);
   s_ghosts_on = false;
   graphics_context_set_text_color(ctx, mix(s_fg, s_bg, 62));
-  draw_text(ctx, day ? "SUNSET" : "SUNRISE", fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD), GRect(G.mx - 1, y0 - 4, 90, 16), GTextAlignmentLeft);
+  draw_text(ctx, day ? "SUNSET IN" : "SUNRISE IN", fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD), GRect(G.mx - 1, y0 - 4, 90, 16), GTextAlignmentLeft);
   set_aa(s_fg);
   lcd_str(ctx, cd, G.mx, y0 + 14, 12, 18, 3);
   s_ghosts_on = s_ghosts;
