@@ -6,7 +6,7 @@ Tone follows the Aura Essential listing and README: plain, first person, one gla
 
 - Store name: Aura LCD
 - Tagline (under 80 characters): An 80s LCD watch, rebuilt sharp for the Pebble Time 2.
-- Alternates: A calm LCD face with the sun on it. / Slanted segments, a sun path and the weather, nothing else.
+- Alternates: Three watchfaces in one, all LCD. / A calm LCD face with the sun on it. / Slanted segments, a sun path and the weather, nothing else.
 
 ## Store description (long)
 
@@ -16,7 +16,7 @@ Above the time, a small LCD arch shows the path of the sun. Only the current col
 
 After dark the face turns negative with amber digits, so it stays easy on the eyes and quiet on the wrist.
 
-Three layouts, from the calm default to a dense one: Quiet, Timeline and Stack. Thirteen colour themes, each with a day and a night look, including one that follows the weather, plus accent colour, date lettering, 12 or 24 hour time and units are all in the settings. Weather, forecast and sun times come from Open-Meteo, with a worldwide city search or your phone's location. No account, no API key, nothing to sign up for.
+Three watchfaces in one! The styles in the settings are three different layouts, from the calm default to a dense one: Quiet, Timeline and Stack. Thirteen colour themes, each with a day and a night look, including one that follows the weather, plus accent colour, date lettering, 12 or 24 hour time and units are all in the settings. Weather, forecast and sun times come from Open-Meteo, with a worldwide city search or your phone's location. No account, no API key, nothing to sign up for.
 
 Free and open source. Inspired by the Casio CGW-50 Cosmo Phase; an independent, non-commercial tribute, not affiliated with or endorsed by Casio.
 
@@ -24,7 +24,7 @@ Digit rendering is adapted from PT2-LCD221 by Kicou (MIT). Segment shapes come f
 
 ## Store description (short, for the 1-2 line slot)
 
-Sharp slanted LCD digits, a sun-path arch with a sunset countdown, weather and a 12 hour forecast. Three layouts and thirteen themes, free and open source.
+Sharp slanted LCD digits, a sun-path arch with a sunset countdown, weather and a 12 hour forecast. Three watchfaces in one and thirteen themes, free and open source.
 
 ## Release notes (1.1)
 
@@ -40,7 +40,7 @@ First release. Three layouts (Quiet, Timeline, Stack), 13 colour themes (one fol
 - 14-segment LCD date lettering
 - Sun-path arch with a countdown to sunset or sunrise
 - Temperature, daily low and high, 12 hour forecast with rain chance
-- Three layouts: Quiet, Timeline, Stack
+- Three watchfaces in one: Quiet, Timeline and Stack layouts
 - 13 colour themes with a day and a night look, one that follows the weather
 - Negative amber night mode
 - Open-Meteo weather, no account or API key
