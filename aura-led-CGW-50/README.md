@@ -4,7 +4,7 @@ A Pebble Time 2 watchface that keeps the Casio CGW-50 "Cosmo Phase" LCD look and
 
 ## Layouts
 
-Three layouts share the same design and are picked in the settings page. Quiet is the default: date and moon on top, the sun path with its countdown, a large time, then the weather on the left and the forecast on the right. Timeline moves the weather up next to the date and stacks the sun path over a full-width forecast. Stack draws the hours over the minutes, very large, with a narrow column of date and weather beside them.
+Three layouts share the same design and are picked in the settings page. Quiet is the default: date and moon on top, the sun path with its countdown, a large time, then the weather on the left and the forecast on the right. Timeline moves the weather up next to the date and stacks the sun path over a full-width forecast. Stack draws the hours over the minutes, very large, with a narrow column of date and weather beside them, on the right or the left as you choose.
 
 ## Settings
 

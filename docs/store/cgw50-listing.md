@@ -20,6 +20,14 @@ Inspired by the Casio CGW-50 "Cosmo Phase". An independent, non-commercial tribu
 
 Credits: digit rendering adapted from PT2-LCD221 by Kicou (MIT); segment shapes from the 7-Segment font by Jan Bobrowski and DSEG14 by Keshikan, and Weather Icons by Erik Flowers (all SIL OFL 1.1); weather data by Open-Meteo.com (CC BY 4.0).
 
+## Release notes (1.2.0)
+
+New: Stack can put its date and weather column on the left or the right of the time, and the column now uses the LCD lettering. The Timeline date uses the LCD lettering too. The unlit LCD segments are much fainter, so they no longer fight with the time. The forecast chart is taller and the small hour numbers under it are gone. Weather icons stay readable on every theme. Quiet, Timeline and Stack are re-spaced so the top and bottom margins match.
+
+## Release notes (1.1.0)
+
+13 colour themes, a sliced moon phase, the Panel layout removed, SUNSET IN and SUNRISE IN labels, credits on the settings page.
+
 ## Release notes (1.0.0)
 
 First release.
@@ -29,8 +37,9 @@ First release.
 - `cgw50-sun.png` (High contrast, direct sunlight)
 - `cgw50-night.png` (Sand and amber, dark night)
 - `cgw50-indoor.png` (Classic LCD, low light indoors)
-- `cgw50-weather.png` (Follow the weather, Timeline)
+- `cgw50-weather.png` (Mood: sunny, Timeline)
 - `cgw50-stack.png` (Mood: sunset, Stack)
+- `cgw50-*-clean.png`: the same five without the unlit LCD segments (not uploaded to the store)
 
 ## Menu icon
 

@@ -1,7 +1,7 @@
 {
   "name": "aura-led-cgw-50",
   "author": "Miguel Angel Baeyens",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "keywords": [
     "pebble-app"
   ],
@@ -27,6 +27,7 @@
     "messageKeys": [
       "THEME",
       "PRESET",
+      "STACK_SIDE",
       "DAY_BG",
       "DAY_FG",
       "NIGHT_BG",
