@@ -34,7 +34,7 @@ No formal human review gate is documented; a listing goes live once the assets a
 
 ## CloudPebble and this monorepo
 
-CloudPebble ([cloudpebble.repebble.com](https://cloudpebble.repebble.com)) syncs a GitHub repo and builds the Pebble project at the **repository root**. This repo is a monorepo: each face lives in its own subdirectory (`aura-analog/`, `aura-digital/`, `aura-essential/`) and there is no project at the root, so a direct GitHub sync just builds the first subdir it finds (`aura-analog`, alphabetically) and ignores the rest. CloudPebble has no "build this subdirectory" setting; naming the CloudPebble project after a face does not select it.
+CloudPebble ([cloudpebble.repebble.com](https://cloudpebble.repebble.com)) syncs a GitHub repo and builds the Pebble project at the **repository root**. This repo is a monorepo: each face lives in its own subdirectory (`aura-essential/`, `aura-led-CGW-50/`, `aura-sky/`, `aura-cityscape/`) and there is no project at the root, so a direct GitHub sync just builds the first subdir it finds (`aura-cityscape`, alphabetically) and ignores the rest. CloudPebble has no "build this subdirectory" setting; naming the CloudPebble project after a face does not select it.
 
 Two ways around it:
 

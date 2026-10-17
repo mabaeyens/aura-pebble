@@ -10,7 +10,7 @@ Snapping rule per channel: `level = round(value01 * 3) * 85`.
 
 ## The weather ramps as encoded in C
 
-These four ramps are re-encoded from `Palette.swift` into the nearest Pebble 64-colour constant in `aura-weather/src/c/aura-weather.c`, and I keep them in step with the phone so a colour means the same thing on the watch as it does in the iOS/macOS app. Each row is one band: the threshold, the iOS intent behind the colour, and the `GColor` constant I snap it to.
+These four ramps are re-encoded from `Palette.swift` into the nearest Pebble 64-colour constant (the retired Aura Weather watchapp was the reference implementation, see git history before 2026-10-17), and I keep them in step with the phone so a colour means the same thing on the watch as it does in the iOS/macOS app. Each row is one band: the threshold, the iOS intent behind the colour, and the `GColor` constant I snap it to.
 
 ### Temperature (`temp_color`, degrees C)
 
@@ -73,22 +73,6 @@ From `Palette.swift` `airQuality`, the Spanish MITECO ICA / European index. **Th
 | 4 | Poor (rojo) | `GColorRed` |
 | 5 | Very poor (granate) | `GColorDarkCandyAppleRed` |
 | 6 | Extremely poor (violeta) | `GColorVividViolet` |
-
-## Time-of-day accent (the `aura-digital` face)
-
-The digital face has no weather data, so its accent tracks the **time of day** instead, echoing Aura's sun-tracking sky on the phone. `accent_for_hour(int hour)` in `aura-digital/src/c/aura-digital.c` maps the hour to a palette colour:
-
-| Hours | Phase | GColor | Hex |
-|---|---|---|---|
-| 00–04 | Deep night | `GColorIndigo` | `#5500AA` |
-| 05–06 | Dawn | `GColorSunsetOrange` | `#FF5555` |
-| 07–09 | Morning | `GColorPictonBlue` | `#55AAFF` |
-| 10–14 | Midday | `GColorVividCerulean` | `#00AAFF` |
-| 15–17 | Afternoon | `GColorRajah` | `#FFAA55` |
-| 18–20 | Dusk | `GColorSunsetOrange` | `#FF5555` |
-| 21–23 | Night | `GColorIndigo` | `#5500AA` |
-
-This is the palette's stand-in for the phone's continuous sky gradient: a stepped ramp, since per-minute recomputation on a watchface doesn't warrant interpolation.
 
 ## Notes
 

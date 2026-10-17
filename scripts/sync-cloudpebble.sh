@@ -2,16 +2,16 @@
 # Sync one monorepo watchface subdirectory to its own CloudPebble deploy branch.
 #
 # Why: CloudPebble's GitHub integration builds the Pebble project at the ROOT of
-# the repo, but this repo is a monorepo (aura-analog / aura-digital /
-# aura-essential each live in a subdirectory, with no project at the root). A
+# the repo, but this repo is a monorepo (aura-essential / aura-led-CGW-50 /
+# aura-sky / aura-cityscape each live in a subdirectory, with no project at the root). A
 # direct GitHub sync therefore just builds the first subdir it finds
-# (aura-analog, alphabetically). This script splits one face's subdirectory into
+# (aura-cityscape, alphabetically). This script splits one face's subdirectory into
 # a branch whose root IS that project, so CloudPebble pointed at the branch
 # builds the face you want.
 #
 # Usage:
 #   scripts/sync-cloudpebble.sh essential        # or: aura-essential
-#   scripts/sync-cloudpebble.sh analog
+#   scripts/sync-cloudpebble.sh led-CGW-50
 #
 # The deploy branch is also pinned to Emery (Pebble Time 2) ONLY: CloudPebble
 # compiles every platform in targetPlatforms, and for fast single-device

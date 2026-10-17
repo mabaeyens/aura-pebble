@@ -6,16 +6,14 @@ Watchfaces for the **Pebble Time 2** carrying the identity of **Aura**, my perso
 
 ## Why this is its own project
 
-Aura on the phone draws around 250 illustrated weather scenes over a live sky. A Pebble app gets about 128 KB of code and 256 KB of resources on a 200×228, 64-colour screen, so none of that art or logic ports. What carries over is Aura's design language: the weather-driven colour ramps (temperature, wind, air quality, UV) and the habit of showing one glanceable thing well. The faces here are standalone clocks in that language, and the analog face adds an optional live weather complication fed from the phone.
+Aura on the phone draws around 250 illustrated weather scenes over a live sky. A Pebble app gets about 128 KB of code and 256 KB of resources on a 200×228, 64-colour screen, so none of that art or logic ports. What carries over is Aura's design language: the weather-driven colour ramps (temperature, wind, air quality, UV) and the habit of showing one glanceable thing well. The faces here are standalone clocks in that language, and the weather watchapps and the LCD face take live weather from the phone.
 
 ## Faces
 
 | Face | What it is | Status |
 |------|------------|--------|
-| **aura-digital** | Minimalist digital face: step count, time, date and battery, with an accent colour that tracks the time of day (echoing Aura's sun-tracking sky). | Phase 1 |
-| **aura-analog** | A Swiss-railway chronograph with the **stop-to-go** second hand (it sweeps a full turn in about 58 s, pauses at 12 for about 2 s, then releases as the minute jumps): white or black dial, black or white baton hands, twelve identical bold hour markers, and a red lollipop second hand. Four subdials, at 12, 9, 3 and 6, each set to whatever you want: the AURA wordmark, live weather, the day (red on Sundays), the date, battery, steps, heart rate, or nothing ([Settings](#settings)). See [Design origin](#design-origin). | Phase 2 |
 | **aura-essential** | A digital face in three blocks after the classic "Essential" layout: a top block with three configurable complications (steps, heart rate, battery, day of the week or weather) drawn as white icons with a black outline and flat segmented (LECO) numbers, a large clock centred in a white band, and a colour strip below. Every block colour, the separator and the clock font are configurable ([Settings](#settings)). | [Live on the appstore](https://apps.repebble.com/aura-essential_19335d2e746b4d6aa6ba8c63) |
-| **aura-weather** | A standalone weather **watchapp**, not a face: a paged, reorderable deck of cards (current conditions, hourly, daily, sun and moon, wind, UV, air quality, details and avisos) fed live from the phone (Open-Meteo worldwide with no API key, plus an AEMET path for Spain) and drawn natively in Aura's colour language. See [Aura Weather](#aura-weather-watchapp). | [Live on the appstore](https://apps.repebble.com/1d7ab48a02de4a58a95732d7) |
+| **aura-lcd** | A calm LCD face after the Casio CGW-50 "Cosmo Phase": sharp slanted 7-segment time, 14-segment LCD date, a sun path with the countdown to sunset or sunrise, the current weather with the day's low and high, and a 12 hour forecast of temperature and rain chance. After sunset it turns negative with amber digits. Three layouts (Quiet, Timeline, Stack), a day and a night look from the full 64-colour palette, and a worldwide city search ([Settings](#settings)). See [Design origin](#design-origin). | [Live on the appstore](https://apps.repebble.com/75df0aa5863e415eaa84c66b) |
 | **aura-sky** | A weather **watchapp** where the sky is the interface: a full-bleed procedural sky painted from the real time of day and the current condition, with the temperature, hourly and daily pages. Live data from the phone (Open-Meteo worldwide, optional AEMET in Spain). See [`aura-sky`](aura-sky). | [Live on the appstore](https://apps.repebble.com/0a9a48594f2845d4a911ff41) |
 | **aura-cityscape** | A weather **watchapp** where a small town is the interface: layered skyline, sun or moon on their real arc, lit windows after dark, clouds, rain, snow and lightning, a thermometer tower and a wind pennant, with hourly and daily pages in the same scene language. Live data from the phone (Open-Meteo worldwide, optional AEMET in Spain). See [`aura-cityscape`](aura-cityscape). | [Live on the appstore](https://apps.repebble.com/f96217ed9b8a41bfb25e2700) |
 
@@ -25,15 +23,11 @@ The Essential face on the Pebble Time 2 emulator, in five of its themes (every b
 
 Aura Essential is live on the Pebble appstore at [apps.repebble.com/aura-essential](https://apps.repebble.com/aura-essential_19335d2e746b4d6aa6ba8c63). Install it straight to a Pebble Time 2 from the Pebble phone app.
 
-## Aura Weather (watchapp)
+The Aura LCD face on the Pebble Time 2 emulator, in its day and night looks and its Stack layout:
 
-Aura Weather is a standalone weather watchapp, not a face: a paged deck of cards you page through with the up and down buttons, every card optional and reorderable from its settings. The phone fetches live weather over the JS bridge (Open-Meteo worldwide with no API key, plus an AEMET path for Spain) and the watch renders each card natively in Aura's colour language at 200×228. It runs on its own, with no companion app on the phone.
+![Aura LCD, weather and forecast](docs/store/cgw50-weather-clean.png) ![Aura LCD, sun path](docs/store/cgw50-sun-clean.png) ![Aura LCD, night](docs/store/cgw50-night-clean.png) ![Aura LCD, indoor theme](docs/store/cgw50-indoor-clean.png) ![Aura LCD, Stack layout](docs/store/cgw50-stack-clean.png)
 
-![Current conditions](aura-weather/docs/store/weather-hero.png) ![Hourly forecast](aura-weather/docs/store/weather-hourly.png) ![Daily forecast](aura-weather/docs/store/weather-daily.png) ![Sun and moon](aura-weather/docs/store/weather-sun.png) ![Wind](aura-weather/docs/store/weather-wind.png) ![UV index](aura-weather/docs/store/weather-uv.png) ![Air quality](aura-weather/docs/store/weather-air.png) ![Details](aura-weather/docs/store/weather-details.png) ![Aviso](aura-weather/docs/store/weather-aviso.png)
-
-Aura Weather is live on the Pebble appstore at [apps.repebble.com/1d7ab48a02de4a58a95732d7](https://apps.repebble.com/1d7ab48a02de4a58a95732d7). Install it straight to a Pebble Time 2 from the Pebble phone app.
-
-The hero card leads with the current conditions over a time-of-day sky: a big temperature, a plain-language forecast sentence, and the wind read as words, the way the phone and watch apps say it. The cards that follow, in their default order: the hourly forecast, the multi-day forecast, sun and moon (sunrise and sunset with the golden-hour and blue-hour windows by day, or the moon phase and illumination at night), wind on a compass rose, the UV index, air quality on the 1-6 European index, and a details card (feels-like, humidity, precipitation and gust). The scale cards (wind, UV, air, details) open an Aura colour legend on a long press of the select button. In Spain an aviso card carries the official AEMET warning when one is live, and a forecast card carries the full AEMET boletin.
+Aura LCD is live on the Pebble appstore at [apps.repebble.com/75df0aa5863e415eaa84c66b](https://apps.repebble.com/75df0aa5863e415eaa84c66b).
 
 ## Build and run
 
@@ -43,8 +37,8 @@ Needs the Pebble SDK (`pebble-tool`, installed with [`uv`](https://docs.astral.s
 uv tool install pebble-tool
 pebble sdk install latest
 
-cd aura-digital
-pebble build                      # -> build/aura-digital.pbw
+cd aura-essential
+pebble build                      # -> build/aura-essential.pbw
 pebble install --emulator emery   # Emery = Pebble Time 2 (retry once if it says "Connection refused")
 ```
 
@@ -52,9 +46,9 @@ To run on a real watch, enable **Dev Connect** in the Pebble phone app, then `pe
 
 ## Settings
 
-The analog and Essential faces each have a settings screen (open it from the Pebble phone app), built with [Clay](https://github.com/pebble-dev/clay). On aura-analog you can pick the black dial, turn the second hand on or off, choose what each of the four subdials shows (nothing, the AURA wordmark, weather, the day, the date, battery, steps or heart rate), and set the weather units. On aura-essential you choose what each of the three top complications shows, the colour of each block, the separator colour, and the clock font.
+The Essential and LCD faces each have a settings screen (open it from the Pebble phone app), built with [Clay](https://github.com/pebble-dev/clay). On aura-essential you choose what each of the three top complications shows, the colour of each block, the separator colour, and the clock font. On aura-lcd you choose the layout, the theme, the day and night colours, the date lettering, stroke weight, 12 or 24 hour time, units and the weather location.
 
-Weather comes from [Open-Meteo](https://open-meteo.com), which needs no API key, so it stays free for anyone. The phone side (PebbleKit JS) fetches the current temperature and condition for your GPS location, or for a latitude and longitude you type in, and pushes them to the watch every 30 minutes. The condition shows as a real weather symbol (from the [Weather Icons](https://github.com/erikflowers/weather-icons) font) mapped from the WMO code. The face still works offline; the weather subdial just reads `--°` until a reading arrives.
+Weather comes from [Open-Meteo](https://open-meteo.com), which needs no API key, so it stays free for anyone. The phone side (PebbleKit JS) fetches the current conditions for your GPS location, a city you search for, or a latitude and longitude you type in, and pushes them to the watch. The faces still work offline; the weather just reads empty until a reading arrives.
 
 ## Docs
 
@@ -63,21 +57,23 @@ Weather comes from [Open-Meteo](https://open-meteo.com), which needs no API key,
 
 ## Design origin
 
-The analog face is a homage to the Mondaine Grand Cushion Set Black, a cushion-cased chronograph on the classic Swiss-railway dial, and its *stop2go* second hand: white dial, black baton hands, twelve identical bold markers, the red lollipop second hand, and subregisters at 12, 9, 3 and 6. The Mondaine name and dial design are protected trademarks and registered designs of Mondaine Watch Ltd; this is an independent, non-commercial reimplementation for PebbleOS, not affiliated with or endorsed by Mondaine or SBB. All the code here is original.
+The LCD face is a tribute to the Casio CGW-50 "Cosmo Phase". It is an independent, non-commercial reimplementation, not affiliated with or endorsed by Casio, and all code is original except where credited in [`aura-led-CGW-50/THIRD_PARTY_NOTICES.md`](aura-led-CGW-50/THIRD_PARTY_NOTICES.md). Casio and Cosmo Phase are trademarks of their owners.
 
 The Essential face is a homage to the original [**Essential**](https://apps.repebble.com/essential_55cf75fc61e031bb4b000025) watchface for Pebble by **Kiezel**, on the appstore since 2015 and unmaintained since 2016: three blocks, white-icon complications with a black outline over a colour block, and a large segmented clock in a white band. The step-count shoe icon is reproduced from that face's own artwork; credit and thanks go to Kiezel. All the code here is original.
 
 ## Fonts
 
-The analog dial is set in **Liberation Sans** (metric-compatible with Helvetica), and the weather conditions use the **Weather Icons** symbol font. Both are under the SIL Open Font License 1.1, bundled and subset to the glyphs actually used, under [`aura-analog/resources/fonts/`](aura-analog/resources/fonts) with their licenses.
-
-- Liberation Sans, © Red Hat, Inc., SIL OFL 1.1.
-- Weather Icons, © Erik Flowers, SIL OFL 1.1.
-
-The Essential face draws its numbers in the Pebble system **LECO** font, and its weekday word in **LECO 1976 Regular** by Samuel Čarnoký (CarnokyType) — the display face the system LECO is modelled on, which unlike the system font also carries letters. It is bundled and subset to the glyphs used under [`aura-essential/resources/fonts/`](aura-essential/resources/fonts). Unlike the analog fonts it is not open-licensed: LECO 1976 Regular is offered free of charge on MyFonts under its Desktop and App licenses, which is how it is used here. The clock can also be set to **Atkinson Hyperlegible Next** (SIL OFL 1.1), a high-legibility face from the Braille Institute, bundled and subset the same way.
+The Essential face draws its numbers in the Pebble system **LECO** font, and its weekday word in **LECO 1976 Regular** by Samuel Čarnoký (CarnokyType), the display face the system LECO is modelled on, which unlike the system font also carries letters. It is bundled and subset to the glyphs used under [`aura-essential/resources/fonts/`](aura-essential/resources/fonts). Unlike the other fonts it is not open-licensed: LECO 1976 Regular is offered free of charge on MyFonts under its Desktop and App licenses, which is how it is used here. The clock can also be set to **Atkinson Hyperlegible Next** (SIL OFL 1.1), a high-legibility face from the Braille Institute, bundled and subset the same way.
 
 - LECO 1976 Regular, © Samuel Čarnoký / CarnokyType, free MyFonts Desktop + App license.
 - Atkinson Hyperlegible Next, © Braille Institute of America, SIL OFL 1.1.
+
+The LCD face draws its digits and its date lettering as polygons rather than from a font file. The digits come from the **7-Segment** font by Jan Bobrowski, by way of PT2-LCD221 by Kicou (MIT), and the 14-segment date letters are traced from **DSEG14 Classic Bold** by Keshikan. Its weather glyphs use the **Weather Icons** font by Erik Flowers. Licences and details are under [`aura-led-CGW-50/`](aura-led-CGW-50) (`THIRD_PARTY_NOTICES.md`).
+
+- 7-Segment, by Jan Bobrowski, SIL OFL 1.1.
+- DSEG14 Classic Bold, © Keshikan, SIL OFL 1.1.
+- Weather Icons, © Erik Flowers, SIL OFL 1.1.
+- PT2-LCD221 digit rendering, © Kicou, MIT.
 
 ## Built with
 
