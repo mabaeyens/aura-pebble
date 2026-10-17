@@ -28,6 +28,7 @@
 
 #define PKEY_LAYOUT 21
 #define PKEY_DATESTYLE 22
+#define PKEY_PRESET 23
 
 #define FC_N 18             // hours sent by the phone; 12 are shown
 #define FC_SHOW 12
@@ -51,6 +52,7 @@ typedef enum { THEME_AUTO, THEME_DAY, THEME_NIGHT } Theme;
 
 // Settings (defaults match src/pkjs/config.js)
 static int s_theme = THEME_AUTO;
+static int s_preset = 0;   // 0 = custom colours below, else a PRESETS row
 static int s_day_bg = 0, s_day_fg = 1, s_night_bg = 1, s_night_fg = 12, s_accent_pref = -1;
 static bool s_time24 = true, s_mdy = true, s_ghosts = true;
 
@@ -117,16 +119,52 @@ static GColor sky_accent(int hour) {
   return GColorIndigo;
 }
 
+// Pre-built themes: day bg/fg/accent then night bg/fg/accent. Row 0 is unused (custom
+// colours); the last id follows the weather by picking one of the mood rows.
+typedef struct { uint8_t dbg, dfg, dacc, nbg, nfg, nacc; } Preset;
+enum { P_SUNNY = 7, P_RAIN, P_STORM, P_SNOW, P_FOG, P_SUNSET, P_FOLLOW };
+static const Preset PRESETS[] = {
+  { 0 },
+  { GColorMintGreenARGB8,      GColorBlackARGB8,      GColorDarkGreenARGB8,       GColorDarkGreenARGB8, GColorMintGreenARGB8,   GColorSpringBudARGB8 },     // Classic LCD
+  { GColorWhiteARGB8,          GColorBlackARGB8,      GColorDarkCandyAppleRedARGB8, GColorBlackARGB8,   GColorWhiteARGB8,       GColorYellowARGB8 },        // High contrast
+  { GColorYellowARGB8,         GColorBlackARGB8,      GColorDukeBlueARGB8,        GColorBlackARGB8,     GColorYellowARGB8,      GColorWhiteARGB8 },         // Black on yellow
+  { GColorWhiteARGB8,          GColorBlackARGB8,      GColorCobaltBlueARGB8,      GColorBlackARGB8,     GColorWhiteARGB8,       GColorVividCeruleanARGB8 }, // Paper and ink
+  { GColorPastelYellowARGB8,   GColorBlackARGB8,      GColorDarkCandyAppleRedARGB8, GColorBlackARGB8,   GColorChromeYellowARGB8, GColorOrangeARGB8 },      // Sand and amber
+  { GColorCelesteARGB8,        GColorOxfordBlueARGB8, GColorBlueMoonARGB8,        GColorOxfordBlueARGB8, GColorCelesteARGB8,    GColorVividCeruleanARGB8 }, // Sky
+  { GColorIcterineARGB8,       GColorBlackARGB8,      GColorOrangeARGB8,          GColorOxfordBlueARGB8, GColorChromeYellowARGB8, GColorYellowARGB8 },     // Sunny
+  { GColorDukeBlueARGB8,       GColorWhiteARGB8,      GColorElectricBlueARGB8,    GColorOxfordBlueARGB8, GColorCelesteARGB8,    GColorVividCeruleanARGB8 }, // Rain
+  { GColorImperialPurpleARGB8, GColorPastelYellowARGB8, GColorYellowARGB8,        GColorBlackARGB8,     GColorPastelYellowARGB8, GColorYellowARGB8 },      // Storm
+  { GColorWhiteARGB8,          GColorOxfordBlueARGB8, GColorVividCeruleanARGB8,   GColorBlackARGB8,     GColorWhiteARGB8,       GColorCelesteARGB8 },       // Snow
+  { GColorLightGrayARGB8,      GColorBlackARGB8,      GColorDarkGrayARGB8,        GColorDarkGrayARGB8,  GColorWhiteARGB8,       GColorLightGrayARGB8 },     // Fog
+  { GColorOrangeARGB8,         GColorBlackARGB8,      GColorDarkCandyAppleRedARGB8, GColorIndigoARGB8,  GColorPastelYellowARGB8, GColorOrangeARGB8 },       // Sunset
+};
+
+static int mood_for_code(int code) {
+  if (code <= 2)                                  return P_SUNNY;
+  if (code == 3 || code == 45 || code == 48)      return P_FOG;
+  if (code >= 95)                                 return P_STORM;
+  if ((code >= 71 && code <= 77) || code == 85 || code == 86) return P_SNOW;
+  return P_RAIN;
+}
+
 static bool sun_is_down(int now_min) { return now_min < s_sunrise || now_min >= s_sunset; }
 
 static void apply_theme(struct tm *t) {
   int now_min = t->tm_hour * 60 + t->tm_min;
   s_night = s_theme == THEME_NIGHT || (s_theme == THEME_AUTO && sun_is_down(now_min));
-  s_bg = palette(s_night ? s_night_bg : s_day_bg);
-  s_fg = palette(s_night ? s_night_fg : s_day_fg);
+  int pid = s_preset == P_FOLLOW ? mood_for_code(s_wx_code) : s_preset;
+  const Preset *pr = pid > 0 && pid < (int)(sizeof PRESETS / sizeof PRESETS[0]) ? &PRESETS[pid] : NULL;
+  if (pr) {
+    s_bg = (GColor){ .argb = s_night ? pr->nbg : pr->dbg };
+    s_fg = (GColor){ .argb = s_night ? pr->nfg : pr->dfg };
+  } else {
+    s_bg = palette(s_night ? s_night_bg : s_day_bg);
+    s_fg = palette(s_night ? s_night_fg : s_day_fg);
+  }
   // Never let a poor pick make the time unreadable: keep a minimum luminance gap
   if (abs(luma(s_fg) - luma(s_bg)) < 1500) s_fg = luma(s_bg) > 1500 ? GColorBlack : GColorWhite;
   if (s_accent_pref >= 0) s_accent = palette(s_accent_pref);
+  else if (pr) s_accent = (GColor){ .argb = s_night ? pr->nacc : pr->dacc };
   else s_accent = s_night ? GColorOrange : sky_accent(t->tm_hour);
   if (abs(luma(s_accent) - luma(s_bg)) < 600) s_accent = s_fg;
   s_earth = s_night ? GColorRed : GColorDarkCandyAppleRed;
@@ -536,6 +574,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 #define GET_INT(key, var, pkey) if ((tp = dict_find(iter, MESSAGE_KEY_##key))) { var = tuple_int(tp); persist_write_int(pkey, var); }
 #define GET_BOOL(key, var, pkey) if ((tp = dict_find(iter, MESSAGE_KEY_##key))) { var = tuple_int(tp) != 0; persist_write_bool(pkey, var); }
   GET_INT(THEME, s_theme, PKEY_THEME)
+  GET_INT(PRESET, s_preset, PKEY_PRESET)
   GET_INT(DAY_BG, s_day_bg, PKEY_DAY_BG)
   GET_INT(DAY_FG, s_day_fg, PKEY_DAY_FG)
   GET_INT(NIGHT_BG, s_night_bg, PKEY_NIGHT_BG)
@@ -566,6 +605,7 @@ static void load_settings(void) {
 #define LOAD_INT(var, pkey) if (persist_exists(pkey)) var = persist_read_int(pkey);
 #define LOAD_BOOL(var, pkey) if (persist_exists(pkey)) var = persist_read_bool(pkey);
   LOAD_INT(s_theme, PKEY_THEME)
+  LOAD_INT(s_preset, PKEY_PRESET)
   LOAD_INT(s_day_bg, PKEY_DAY_BG)
   LOAD_INT(s_day_fg, PKEY_DAY_FG)
   LOAD_INT(s_night_bg, PKEY_NIGHT_BG)

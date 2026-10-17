@@ -26,6 +26,7 @@
     },
     "messageKeys": [
       "THEME",
+      "PRESET",
       "DAY_BG",
       "DAY_FG",
       "NIGHT_BG",
