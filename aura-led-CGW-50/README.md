@@ -1,4 +1,4 @@
-# Aura LED CGW-50
+# Aura LCD
 
 A Pebble Time 2 watchface that keeps the Casio CGW-50 "Cosmo Phase" LCD look and reorganises it for reading at a glance. The time is drawn in sharp slanted 7-segment digits, the date in 14-segment LCD letters, and the rest of the face is quiet: a sun path with the countdown to the next sunset or sunrise, the current weather with the day's low and high, and a 12 hour forecast of temperature and rain chance. After sunset the face turns negative with amber digits. It is display only, because watchfaces do not receive touch events on the current firmware.
 

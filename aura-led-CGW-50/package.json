@@ -10,7 +10,7 @@
     "pebble-clay": "^1.0.4"
   },
   "pebble": {
-    "displayName": "Aura LED CGW-50",
+    "displayName": "Aura LCD",
     "uuid": "26d59567-2938-469f-a59d-2a7e62387e6e",
     "sdkVersion": "3",
     "enableMultiJS": true,

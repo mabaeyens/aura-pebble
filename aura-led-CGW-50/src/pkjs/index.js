@@ -1,4 +1,4 @@
-// Aura LED CGW-50 PebbleKit JS: Clay settings + Open-Meteo weather bridge.
+// Aura LCD PebbleKit JS: Clay settings + Open-Meteo weather bridge.
 // The watch has no internet; this runs on the phone, fetches weather, and pushes
 // temperature + WMO weather code to the watch over AppMessage. Open-Meteo needs
 // no API key, which keeps this free for anyone installing the face.

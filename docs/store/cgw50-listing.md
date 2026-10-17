@@ -1,10 +1,10 @@
-# Aura LED CGW-50: store listing
+# Aura LCD: store listing
 
 Built file: `aura-led-CGW-50/build/aura-led-CGW-50.pbw` (version 1.0.0, emery only).
 
 ## Title
 
-Aura LED CGW-50
+Aura LCD
 
 ## Short description
 

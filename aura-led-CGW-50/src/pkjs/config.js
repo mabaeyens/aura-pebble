@@ -1,6 +1,6 @@
 var pkg = require('../../package.json');
 
-// Clay settings schema for the Aura LED CGW-50 watchface.
+// Clay settings schema for the Aura LCD watchface.
 // Values are strings that the C parses as ints (see tuple_int in aura-led-cgw-50.c).
 //  - THEME: 0 automatic (negative after sunset), 1 always day, 2 always night.
 //  - DAY_* / NIGHT_* pick background and digit colours for each theme; indices match
@@ -108,7 +108,7 @@ module.exports = [
   {
     "type": "section",
     "items": [
-      { "type": "text", "defaultValue": "Aura LED CGW-50 v" + pkg.version,
+      { "type": "text", "defaultValue": "Aura LCD v" + pkg.version,
         "attributes": { "style": "text-align:center;color:#8aa0b6;font-size:12px;" } }
     ]
   },
