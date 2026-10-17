@@ -1,0 +1,73 @@
+{
+  "name": "aura-led-cgw-50",
+  "author": "Miguel Angel Baeyens",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {
+    "pebble-clay": "^1.0.4"
+  },
+  "pebble": {
+    "displayName": "Aura LED CGW-50",
+    "uuid": "26d59567-2938-469f-a59d-2a7e62387e6e",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "capabilities": [
+      "configurable",
+      "location"
+    ],
+    "targetPlatforms": [
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "messageKeys": [
+      "THEME",
+      "DAY_BG",
+      "DAY_FG",
+      "NIGHT_BG",
+      "NIGHT_FG",
+      "ACCENT",
+      "TIME24",
+      "DATE_MDY",
+      "GHOSTS",
+      "UNITS",
+      "SEARCH",
+      "CITY",
+      "USE_GPS",
+      "LAT",
+      "LON",
+      "WX_TEMP",
+      "WX_CODE",
+      "WX_OK",
+      "WX_HI",
+      "WX_LO",
+      "SUNRISE",
+      "SUNSET",
+      "FC_H",
+      "FC_T",
+      "FC_P",
+      "LAYOUT",
+      "DATE_STYLE"
+    ],
+    "resources": {
+      "media": [
+        {
+          "type": "font",
+          "name": "FONT_WX_26",
+          "file": "fonts/WeatherIcons-Regular.ttf",
+          "characterRegex": "[]"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMG_MENU_ICON",
+          "file": "images/menu-icon.png",
+          "menuIcon": true
+        }
+      ]
+    }
+  }
+}
