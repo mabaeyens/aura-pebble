@@ -38,7 +38,7 @@
 // a pale LCD pane inside a dark bezel, so the geometry is a little tighter.
 typedef struct { int date_y, strip_base, time_y, time_w, time_h, hair_y, bot_y, mx, step, labels; } Geo;
 static const Geo GEO[4] = {
-  { -2,  31,  69, 34, 84, 154, 158,  8, 7, 1 },   // quiet
+  { -1,  31,  71, 34, 82, 154, 158,  8, 7, 1 },   // quiet
   {  4,  35,  74, 30, 72, 150, 154, 14, 6, 1 },   // panel
   { -2, 122,  32, 35, 86, 0,   156,  8, 0, 1 },   // timeline
   {  0, 224,   6, 60, 92, 0,     0,  8, 0, 0 },   // stack
@@ -283,22 +283,33 @@ static void draw_date(GContext *ctx, struct tm *tm, int x, int y) {
   draw_text(ctx, rest, s_f_date, GRect(x + wd.w, y, W - x - wd.w, 32), GTextAlignmentLeft);
 }
 
+// Moon phase in the style of the Casio Tide Graph watches: a disc cut into vertical slivers by
+// meridian lines. Slivers on the lit side of the terminator are filled; the rest show as unlit
+// LCD segments, like the digits.
 static void draw_moon(GContext *ctx, int cx, int cy, int r, time_t t) {
   const int32_t SYNODIC_S = 2551443;
+  const int SLICES = 5;
   int32_t into = (int32_t)(((int64_t)t - 947182440) % SYNODIC_S);
   if (into < 0) into += SYNODIC_S;
   int32_t angle = (int32_t)((int64_t)TRIG_MAX_ANGLE * into / SYNODIC_S);
   bool waxing = into < SYNODIC_S / 2;
-  graphics_context_set_fill_color(ctx, s_fg);
   for (int dy = -r; dy <= r; dy++) {
     int w = 0;
     while ((w + 1) * (w + 1) + dy * dy <= r * r) w++;
     int xt = w * cos_lookup(angle) / TRIG_MAX_RATIO;   // terminator
     int x0 = waxing ? xt : -w, x1 = waxing ? w : -xt;
+    if (s_ghosts) {
+      graphics_context_set_fill_color(ctx, mix(s_fg, s_bg, 28));   // 12% (s_ghost) rounds to the background on the 64-colour palette
+      graphics_fill_rect(ctx, GRect(cx - w, cy + dy, 2 * w + 1, 1), 0, GCornerNone);
+    }
+    graphics_context_set_fill_color(ctx, s_fg);
     if (x1 >= x0) graphics_fill_rect(ctx, GRect(cx + x0, cy + dy, x1 - x0 + 1, 1), 0, GCornerNone);
+    graphics_context_set_fill_color(ctx, s_bg);
+    for (int k = 1; k < SLICES; k++) {   // meridians at cos(k*pi/SLICES), both sides of the centre
+      int xb = w * cos_lookup(TRIG_MAX_ANGLE * k / (2 * SLICES)) / TRIG_MAX_RATIO;
+      graphics_fill_rect(ctx, GRect(cx + xb, cy + dy, 1, 1), 0, GCornerNone);
+    }
   }
-  graphics_context_set_stroke_color(ctx, s_fg);
-  graphics_draw_circle(ctx, GPoint(cx, cy), r);
 }
 
 // Daylight bar: sunrise to sunset by day, sunset to sunrise by night. Lit cells are the time
@@ -512,7 +523,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   if (s_layout == 3) { paint_stack(ctx, tm, now, now_min); return; }
 
   draw_date(ctx, tm, G.mx, G.date_y);
-  draw_moon(ctx, W - G.mx - 9, G.date_y + 16, 8, now);
+  draw_moon(ctx, W - G.mx - 9, G.date_y + 16, 9, now);
   draw_daylight(ctx, now_min);
 
   if (s_time24) snprintf(buf, sizeof(buf), "%02d:%02d", tm->tm_hour, tm->tm_min);
