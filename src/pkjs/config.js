@@ -38,6 +38,15 @@ var FONT_OPTIONS = [
   { "label": "Atkinson Hyperlegible", "value": "4" }
 ];
 
+// How often heart rate and steps may redraw the face. Every minute needs no health events at all
+// (best battery); the shorter periods are for workouts.
+var REFRESH_OPTIONS = [
+  { "label": "Every minute (best battery)", "value": "60" },
+  { "label": "Every 30 seconds", "value": "30" },
+  { "label": "Every 15 seconds", "value": "15" },
+  { "label": "Every 5 seconds (workouts)", "value": "5" }
+];
+
 var SEP_OPTIONS = [{ "label": "Off", "value": "-1" }].concat(COLOR_OPTIONS);
 
 // Time digits can follow the band automatically or take a fixed colour.
@@ -74,7 +83,9 @@ module.exports = [
     "type": "section",
     "items": [
       { "type": "heading", "defaultValue": "Time" },
-      { "type": "select", "messageKey": "TIMEFONT", "label": "Font", "defaultValue": "0", "options": FONT_OPTIONS }
+      { "type": "select", "messageKey": "TIMEFONT", "label": "Font", "defaultValue": "0", "options": FONT_OPTIONS },
+      { "type": "select", "messageKey": "REFRESH", "label": "Heart rate and steps update", "defaultValue": "60", "options": REFRESH_OPTIONS },
+      { "type": "text", "defaultValue": "The time always updates every minute. Shorter periods redraw more often and use more battery." }
     ]
   },
   {

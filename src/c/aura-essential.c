@@ -49,6 +49,7 @@ static const uint32_t COLOR_HEX[10] = {
 #define PKEY_BOTCOLOR  14
 #define PKEY_COMPCOLOR 15
 #define PKEY_TIMECOLOR 16
+#define PKEY_REFRESH   17   // seconds between health-driven redraws; 60 = the minute tick only
 
 // Pull in the MESSAGE_KEY_* ids from the generated header rather than declaring
 // them extern by hand. pebble-tool 5.0.40 emits them as extern uint32_t globals
@@ -68,6 +69,7 @@ static int  s_font     = 0;   // time font index
 static int  s_sep      = 6;   // separator colour index (black); -1 = off
 static int  s_comp     = 7;   // complication fill colour index (white)
 static int  s_timecol  = -1;  // time digit colour index; -1 = auto by band luminance
+static int  s_refresh  = 60;  // seconds between health-driven redraws; 60 = minute tick only (best battery)
 static int  s_wx_temp  = 0;
 static int  s_wx_code  = 0;
 static bool s_wx_ok    = false;
@@ -381,13 +383,13 @@ static void draw_comp(GContext *ctx, int type, int cx, int cell_w) {
     graphics_context_set_compositing_mode(ctx, GCompOpSet);
     graphics_draw_bitmap_in_rect(ctx, s_shoe_bmp, dst);
   } else {
-    for (int dy = -3; dy <= 3; dy++) {
-      for (int dx = -3; dx <= 3; dx++) {
-        if (dx == 0 && dy == 0) continue;
-        if (dx * dx + dy * dy > 10) continue;   // clip the halo to a ~3px disc
-        render_icon(ctx, type, cx, dx, dy, GColorBlack);
-      }
-    }
+    // The halo is the icon stamped on a ring ~3px out; the icons are solid shapes,
+    // so 12 stamps fill the same ~3px disc the old 36 did.
+    static const int8_t RING[12][2] = {
+      { 3, 1 }, { 3, -1 }, { -3, 1 }, { -3, -1 }, { 1, 3 }, { -1, 3 },
+      { 1, -3 }, { -1, -3 }, { 2, 2 }, { 2, -2 }, { -2, 2 }, { -2, -2 }
+    };
+    for (int i = 0; i < 12; i++) render_icon(ctx, type, cx, RING[i][0], RING[i][1], GColorBlack);
     render_icon(ctx, type, cx, 0, 0, palette(s_comp));  // fill on top of the outline
     if (type == C_DAY) {
       time_t now = time(NULL);
@@ -398,7 +400,10 @@ static void draw_comp(GContext *ctx, int type, int cx, int cell_w) {
   render_label(ctx, type, cx, cell_w, palette(s_comp)); // flat label, no outline
 }
 
+static time_t s_last_draw;   // when the face was last painted, for throttling health redraws
+
 static void face_update_proc(Layer *layer, GContext *ctx) {
+  s_last_draw = time(NULL);
   GRect b = layer_get_bounds(layer);
   int w = b.size.w, h = b.size.h;
 
@@ -458,6 +463,8 @@ static void face_update_proc(Layer *layer, GContext *ctx) {
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
+static void apply_refresh(void);
+
 // A Clay select may arrive as an int or a numeric string; accept both.
 static int tuple_int(Tuple *tp) {
   return (tp->type == TUPLE_CSTRING) ? atoi(tp->value->cstring) : (int)tp->value->int32;
@@ -475,6 +482,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((tp = dict_find(iter, MESSAGE_KEY_SEPCOLOR)))  { s_sep  = tuple_int(tp); persist_write_int(PKEY_SEPCOLOR, s_sep); }
   if ((tp = dict_find(iter, MESSAGE_KEY_COMPCOLOR))) { s_comp    = tuple_int(tp); persist_write_int(PKEY_COMPCOLOR, s_comp); }
   if ((tp = dict_find(iter, MESSAGE_KEY_TIMECOLOR))) { s_timecol = tuple_int(tp); persist_write_int(PKEY_TIMECOLOR, s_timecol); }
+  if ((tp = dict_find(iter, MESSAGE_KEY_REFRESH)))   { s_refresh = tuple_int(tp); if (s_refresh < 5 || s_refresh > 60) s_refresh = 60; persist_write_int(PKEY_REFRESH, s_refresh); apply_refresh(); }
   if ((tp = dict_find(iter, MESSAGE_KEY_WX_OK)))     { s_wx_ok   = tp->value->int32; persist_write_bool(PKEY_WX_OK, s_wx_ok); }
   if ((tp = dict_find(iter, MESSAGE_KEY_WX_TEMP)))   { s_wx_temp = tp->value->int32; persist_write_int(PKEY_WX_TEMP, s_wx_temp); }
   if ((tp = dict_find(iter, MESSAGE_KEY_WX_CODE)))   { s_wx_code = tp->value->int32; persist_write_int(PKEY_WX_CODE, s_wx_code); }
@@ -492,6 +500,7 @@ static void load_settings(void) {
   if (persist_exists(PKEY_SEPCOLOR))  s_sep     = persist_read_int(PKEY_SEPCOLOR);
   if (persist_exists(PKEY_COMPCOLOR)) s_comp    = persist_read_int(PKEY_COMPCOLOR);
   if (persist_exists(PKEY_TIMECOLOR)) s_timecol = persist_read_int(PKEY_TIMECOLOR);
+  if (persist_exists(PKEY_REFRESH))   { s_refresh = persist_read_int(PKEY_REFRESH); if (s_refresh < 5 || s_refresh > 60) s_refresh = 60; }
   if (persist_exists(PKEY_WX_TEMP))   s_wx_temp = persist_read_int(PKEY_WX_TEMP);
   if (persist_exists(PKEY_WX_CODE))   s_wx_code = persist_read_int(PKEY_WX_CODE);
   if (persist_exists(PKEY_WX_OK))     s_wx_ok   = persist_read_bool(PKEY_WX_OK);
@@ -501,15 +510,35 @@ static void load_settings(void) {
 #define OUTBOX_SIZE 64
 
 #if defined(PBL_HEALTH)
-// Redraw as soon as the heart-rate sensor reports a new reading (or the step
-// count moves), instead of waiting for the next minute tick.
+// Redraw when the heart-rate sensor or the step count reports something new, but never more
+// often than every s_refresh seconds. At the default (60) the health service isn't subscribed
+// at all and the minute tick does the work. A shorter period is for workouts.
+static AppTimer *s_health_timer;
+
+static void health_redraw(void *data) {
+  s_health_timer = NULL;
+  layer_mark_dirty(s_layer);
+}
+
 static void health_handler(HealthEventType event, void *context) {
-  if (event == HealthEventHeartRateUpdate || event == HealthEventMovementUpdate ||
-      event == HealthEventSignificantUpdate) {
+  if (event != HealthEventHeartRateUpdate && event != HealthEventMovementUpdate &&
+      event != HealthEventSignificantUpdate) return;
+  int wait = s_refresh - (int)(time(NULL) - s_last_draw);
+  if (wait <= 0) {
     layer_mark_dirty(s_layer);
+  } else if (!s_health_timer) {
+    s_health_timer = app_timer_register(wait * 1000, health_redraw, NULL);   // trailing update, so the last event isn't lost
   }
 }
 #endif
+
+static void apply_refresh(void) {
+#if defined(PBL_HEALTH)
+  health_service_events_unsubscribe();
+  if (s_health_timer) { app_timer_cancel(s_health_timer); s_health_timer = NULL; }
+  if (s_refresh < 60) health_service_events_subscribe(health_handler, NULL);
+#endif
+}
 
 static void tick_handler(struct tm *t, TimeUnits units) { layer_mark_dirty(s_layer); }
 static void battery_handler(BatteryChargeState state)   { layer_mark_dirty(s_layer); }
@@ -544,9 +573,7 @@ static void init(void) {
 
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   battery_state_service_subscribe(battery_handler);
-#if defined(PBL_HEALTH)
-  health_service_events_subscribe(health_handler, NULL);
-#endif
+  apply_refresh();
 
   app_message_register_inbox_received(inbox_received_handler);
   // The watch only receives (Clay settings incl. the city strings, and the weather
@@ -559,6 +586,7 @@ static void deinit(void) {
   battery_state_service_unsubscribe();
 #if defined(PBL_HEALTH)
   health_service_events_unsubscribe();
+  if (s_health_timer) app_timer_cancel(s_health_timer);
 #endif
   if (s_shoe_bmp) gbitmap_destroy(s_shoe_bmp);
   if (s_f_day) fonts_unload_custom_font(s_f_day);
